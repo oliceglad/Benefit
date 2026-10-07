@@ -1,0 +1,77 @@
+{
+  "realm": "benefit",
+  "displayName": "Benefit",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["ru", "en"],
+  "defaultLocale": "ru",
+  "sslRequired": "external",
+  "roles": {
+    "realm": [
+      { "name": "candidate", "description": "Кандидат" },
+      { "name": "employer", "description": "Работодатель" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "benefit-auth",
+      "name": "Benefit auth-service",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "benefit-keycloak-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:8000/api/v1/auth/oauth/keycloak/callback"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles in id token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "candidate@benefit-test.ru",
+      "email": "candidate@benefit-test.ru",
+      "emailVerified": true,
+      "firstName": "Мария",
+      "lastName": "Кандидатова",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "candidate123", "temporary": false }],
+      "realmRoles": ["candidate"]
+    },
+    {
+      "username": "employer@benefit-test.ru",
+      "email": "employer@benefit-test.ru",
+      "emailVerified": true,
+      "firstName": "Алексей",
+      "lastName": "Работодателев",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "employer123", "temporary": false }],
+      "realmRoles": ["employer"]
+    }
+  ]
+}

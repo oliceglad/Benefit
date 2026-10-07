@@ -1,9 +1,24 @@
 name: benefit
 
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+
 services:
+  # --- API-шлюз: единственная точка входа снаружи -------------------------
+  gateway:
+    <<: *service-defaults
+    build:
+      context: ./backend/gateway
+    ports:
+      - "${GATEWAY_PORT:-8000}:80"
+    depends_on:
+      - core
+      - auth-service
+
+  # --- core: вакансии и подбор --------------------------------------------
   db:
+    <<: *service-defaults
     image: pgvector/pgvector:pg17
-    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -18,20 +33,127 @@ services:
       timeout: 5s
       retries: 10
 
-  backend:
+  core:
+    <<: *service-defaults
     build:
-      context: ./backend
-    restart: unless-stopped
+      context: ./backend/core
     env_file:
       - .env
     environment:
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      AUTH_JWKS_URL: http://auth-service:8000/.well-known/jwks.json
+      AUTH_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
     depends_on:
       db:
         condition: service_healthy
+
+  # --- Аутентификация ------------------------------------------------------
+  auth-db:
+    <<: *service-defaults
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME:-auth}
+      POSTGRES_USER: ${AUTH_DB_USER:-auth}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-auth}
+    ports:
+      - "${AUTH_DB_PORT:-5433}:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    <<: *service-defaults
+    build:
+      context: ./backend/auth-service
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-[]}
+      PUBLIC_URL: ${AUTH_PUBLIC_URL:-http://localhost:8000}
+      JWT_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
+      POSTGRES_HOST: auth-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${AUTH_DB_NAME:-auth}
+      POSTGRES_USER: ${AUTH_DB_USER:-auth}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-auth}
+      SECRET_KEY: ${AUTH_SECRET_KEY:-change-me}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
+      MAIL_SERVICE_URL: http://mail-service:8000
+      OAUTH_FRONTEND_CALLBACK_URL: ${OAUTH_FRONTEND_CALLBACK_URL:-}
+      FSP_ID_ENABLED: ${FSP_ID_ENABLED:-true}
+      FSP_ID_ISSUER: ${FSP_ID_ISSUER:-http://localhost:8003/realms/fsp}
+      FSP_ID_INTERNAL_ISSUER: ${FSP_ID_INTERNAL_ISSUER:-http://fsp-id-mock:8000/realms/fsp}
+      FSP_ID_CLIENT_ID: ${FSP_ID_CLIENT_ID:-benefit}
+      FSP_ID_CLIENT_SECRET: ${FSP_ID_CLIENT_SECRET:-fsp-dev-secret}
+      KEYCLOAK_ENABLED: ${KEYCLOAK_ENABLED:-true}
+      KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8080}/realms/benefit
+      KEYCLOAK_INTERNAL_ISSUER: http://keycloak:8080/realms/benefit
+      KEYCLOAK_CLIENT_ID: benefit-auth
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-benefit-keycloak-dev-secret}
+    volumes:
+      - auth_keys:/app/keys
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      mail-service:
+        condition: service_started
+
+  # --- Почта ---------------------------------------------------------------
+  mail-service:
+    <<: *service-defaults
+    build:
+      context: ./backend/mail-service
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
+      MAIL_FROM: ${MAIL_FROM:-Benefit <no-reply@benefit.ru>}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
+      SMTP_START_TLS: ${SMTP_START_TLS:-false}
+
+  # Тестовый SMTP-сервер: все письма видны в веб-интерфейсе.
+  mailpit:
+    <<: *service-defaults
+    image: axllent/mailpit:latest
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+
+  # --- Внешние провайдеры --------------------------------------------------
+  fsp-id-mock:
+    <<: *service-defaults
+    build:
+      context: ./backend/fsp-id-mock
+    environment:
+      PUBLIC_URL: http://localhost:${FSP_ID_PORT:-8003}
+      CLIENT_ID: ${FSP_ID_CLIENT_ID:-benefit}
+      CLIENT_SECRET: ${FSP_ID_CLIENT_SECRET:-fsp-dev-secret}
+      REDIRECT_URIS: '["${AUTH_PUBLIC_URL:-http://localhost:8000}/api/v1/auth/oauth/fsp_id/callback"]'
+    ports:
+      - "${FSP_ID_PORT:-8003}:8000"
+
+  keycloak:
+    <<: *service-defaults
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Issuer в токенах — публичный адрес; auth-service ходит по внутреннему.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./backend/keycloak:/opt/keycloak/data/import:ro
 
   # frontend:
   #   build:
@@ -39,7 +161,9 @@ services:
   #   ports:
   #     - "3000:3000"
   #   depends_on:
-  #     - backend
+  #     - gateway
 
 volumes:
   postgres_data:
+  auth_db_data:
+  auth_keys:
