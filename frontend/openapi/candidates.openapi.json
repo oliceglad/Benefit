@@ -1,0 +1,3437 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Benefit Candidates",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/candidates/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "health_api_v1_candidates_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Api V1 Candidates Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/candidates/dictionaries": {
+      "get": {
+        "tags": [
+          "candidate: справочники"
+        ],
+        "summary": "Get Dictionaries",
+        "operationId": "get_dictionaries_api_v1_candidates_dictionaries_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Dictionaries Api V1 Candidates Dictionaries Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/candidates/dictionaries/skills": {
+      "get": {
+        "tags": [
+          "candidate: справочники"
+        ],
+        "summary": "Suggest Skills",
+        "description": "Подсказки навыков: учитывает синонимы («питон» → Python).",
+        "operationId": "suggest_skills_api_v1_candidates_dictionaries_skills_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Suggest Skills Api V1 Candidates Dictionaries Skills Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/candidates/me": {
+      "get": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Get Profile",
+        "description": "Профиль текущего кандидата. При первом обращении создаётся черновик.\n\n``completeness`` подсказывает фронтенду шаги онбординга после регистрации.",
+        "operationId": "get_profile_api_v1_candidates_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Delete Profile",
+        "description": "Удаление профиля и всех данных резюме.",
+        "operationId": "delete_profile_api_v1_candidates_me_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Update Profile",
+        "description": "Частичное обновление: передаются только изменённые поля или разделы.\n\nСписки (опыт, навыки…) заменяются целиком.",
+        "operationId": "update_profile_api_v1_candidates_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/candidates/me/publish": {
+      "post": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Publish",
+        "description": "Публикация: профиль становится доступен работодателям.\n\nТребует заполненных обязательных полей и действующих согласий.",
+        "operationId": "publish_api_v1_candidates_me_publish_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/candidates/me/unpublish": {
+      "post": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Unpublish",
+        "operationId": "unpublish_api_v1_candidates_me_unpublish_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/candidates/me/photo": {
+      "get": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Get Photo",
+        "operationId": "get_photo_api_v1_candidates_me_photo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Upload Photo",
+        "operationId": "upload_photo_api_v1_candidates_me_photo_put",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_photo_api_v1_candidates_me_photo_put"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Delete Photo",
+        "operationId": "delete_photo_api_v1_candidates_me_photo_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/candidates/me/consents": {
+      "get": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "List Consents",
+        "operationId": "list_consents_api_v1_candidates_me_consents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentStatus"
+                  },
+                  "type": "array",
+                  "title": "Response List Consents Api V1 Candidates Me Consents Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Grant Consent",
+        "description": "Фиксирует согласие с версией документа, временем, IP и браузером.",
+        "operationId": "grant_consent_api_v1_candidates_me_consents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentGrant"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Grant Consent Api V1 Candidates Me Consents Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/candidates/me/consents/{consent_type}": {
+      "delete": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Revoke Consent",
+        "description": "Отзыв согласия. Опубликованный профиль снимается с публикации.",
+        "operationId": "revoke_consent_api_v1_candidates_me_consents__consent_type__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "consent_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ConsentType"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsentStatus"
+                  },
+                  "title": "Response Revoke Consent Api V1 Candidates Me Consents  Consent Type  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/candidates/me/fsp/sync": {
+      "post": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Sync Fsp",
+        "description": "Обновляет связь с участником ФСП и его достижения.\n\nВызывать после привязки ФСП ID (``POST /api/v1/auth/oauth/fsp_id/link``).",
+        "operationId": "sync_fsp_api_v1_candidates_me_fsp_sync_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/candidates/me/resume/import": {
+      "post": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Import Resume",
+        "description": "Распознаёт резюме из PDF (например, выгрузку с hh.ru).\n\nБез ``apply`` только возвращает черновик для предзаполнения формы.",
+        "operationId": "import_resume_api_v1_candidates_me_resume_import_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "apply",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Сразу дополнить профиль (заполненные поля не меняются)",
+              "default": false,
+              "title": "Apply"
+            },
+            "description": "Сразу дополнить профиль (заполненные поля не меняются)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_resume_api_v1_candidates_me_resume_import_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/candidates/me/resume.pdf": {
+      "get": {
+        "tags": [
+          "candidate: личный кабинет"
+        ],
+        "summary": "Export Resume",
+        "description": "Резюме в PDF со всеми данными (для себя или отправки работодателю).",
+        "operationId": "export_resume_api_v1_candidates_me_resume_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/candidates/{user_id}": {
+      "get": {
+        "tags": [
+          "candidate: просмотр работодателем"
+        ],
+        "summary": "Get Candidate",
+        "operationId": "get_candidate_api_v1_candidates__user_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/candidates/{user_id}/photo": {
+      "get": {
+        "tags": [
+          "candidate: просмотр работодателем"
+        ],
+        "summary": "Get Candidate Photo",
+        "operationId": "get_candidate_photo_api_v1_candidates__user_id__photo_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/candidates/{user_id}/resume.pdf": {
+      "get": {
+        "tags": [
+          "candidate: просмотр работодателем"
+        ],
+        "summary": "Get Candidate Resume",
+        "operationId": "get_candidate_resume_api_v1_candidates__user_id__resume_pdf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/candidates": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "List Candidates",
+        "description": "Пакетная выгрузка для первичной индексации в сервисе подбора.",
+        "operationId": "list_candidates_internal_v1_candidates_get",
+        "parameters": [
+          {
+            "name": "only_published",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Only Published"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CandidateSnapshot"
+                  },
+                  "title": "Response List Candidates Internal V1 Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/candidates/{user_id}/search-document": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Search Document",
+        "description": "Данные для поискового индекса (matching-service).\n\nЭто профиль глазами работодателя без доступа к контактам: настройки\nприватности применены, контактов нет. Неопубликованный профиль — 404\n(его нужно убрать из индекса).",
+        "operationId": "search_document_internal_v1_candidates__user_id__search_document_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/candidates/{user_id}": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Get Candidate",
+        "operationId": "get_candidate_internal_v1_candidates__user_id__get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/candidates/{user_id}/assessment": {
+      "put": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Set Assessment Result",
+        "description": "Обновляет категорию кандидата по итогам тестирования.\n\nИдемпотентно: повторная доставка того же результата ничего не меняет.",
+        "operationId": "set_assessment_result_internal_v1_candidates__user_id__assessment_put",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentResult"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateSnapshot"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/candidates/{user_id}/contact-grants": {
+      "put": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Grant Contacts",
+        "description": "Открывает работодателю контакты кандидата: кандидат принял его\nприглашение или откликнулся на вакансию. Идемпотентно.",
+        "operationId": "grant_contacts_internal_v1_candidates__user_id__contact_grants_put",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactGrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/candidates/{user_id}/activities": {
+      "put": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Record Activity",
+        "description": "Активность по заданиям работодателей (из chat-service). Влияет на\nактуальность профиля. Идемпотентно по (kind, ref_id).",
+        "operationId": "record_activity_internal_v1_candidates__user_id__activities_put",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/events": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "List Events",
+        "description": "Лента доменных событий. Потребитель хранит последний ``id`` и\nзапрашивает следующие события (at-least-once).",
+        "operationId": "list_events_internal_v1_events_get",
+        "parameters": [
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventResponse"
+                  },
+                  "title": "Response List Events Internal V1 Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActivityRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "task_assigned",
+              "task_submitted",
+              "task_reviewed",
+              "task_expired",
+              "employer_test_completed",
+              "employer_test_expired"
+            ],
+            "title": "Kind"
+          },
+          "ref_id": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Ref Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "ref_id",
+          "occurred_at"
+        ],
+        "title": "ActivityRequest"
+      },
+      "Actuality": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ActualityStatus"
+          },
+          "last_active_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Active At"
+          },
+          "tasks_assigned": {
+            "type": "integer",
+            "title": "Tasks Assigned"
+          },
+          "tasks_submitted": {
+            "type": "integer",
+            "title": "Tasks Submitted"
+          },
+          "tasks_passed": {
+            "type": "integer",
+            "title": "Tasks Passed"
+          },
+          "tasks_failed": {
+            "type": "integer",
+            "title": "Tasks Failed"
+          },
+          "tasks_expired": {
+            "type": "integer",
+            "title": "Tasks Expired"
+          },
+          "employer_tests_completed": {
+            "type": "integer",
+            "title": "Employer Tests Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "last_active_at",
+          "tasks_assigned",
+          "tasks_submitted",
+          "tasks_passed",
+          "tasks_failed",
+          "tasks_expired",
+          "employer_tests_completed"
+        ],
+        "title": "Actuality",
+        "description": "Актуальность профиля: насколько недавно кандидат проявлял активность\n(обновлял профиль, проходил тест, решал задания работодателей)."
+      },
+      "ActualityStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "recent",
+          "stale"
+        ],
+        "title": "ActualityStatus"
+      },
+      "AssessmentResult": {
+        "properties": {
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "specialization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ITRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Id"
+          },
+          "test_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Title"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "title": "AssessmentResult",
+        "description": "Итог тестирования от assessment-service.\n\n``verified_grade`` — лучший действующий подтверждённый грейд кандидата\n(``None``, если подтверждённых результатов нет). Низкий результат сюда\nне передаётся: assessment-service присылает только подтверждения."
+      },
+      "Body_import_resume_api_v1_candidates_me_resume_import_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_resume_api_v1_candidates_me_resume_import_post"
+      },
+      "Body_upload_photo_api_v1_candidates_me_photo_put": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_photo_api_v1_candidates_me_photo_put"
+      },
+      "CandidateSnapshot": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "updated_at",
+          "data"
+        ],
+        "title": "CandidateSnapshot"
+      },
+      "Category": {
+        "properties": {
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "specialization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ITRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade_status": {
+            "$ref": "#/components/schemas/GradeStatus"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "test_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Title"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "industry",
+          "specialization",
+          "grade",
+          "grade_status"
+        ],
+        "title": "Category",
+        "description": "Категория кандидата, видимая работодателю: отрасль, специализация\nи грейд со статусом подтверждения.\n\nЕсли тест показал грейд ниже заявленного, показывается заявленный грейд\nсо статусом «не подтверждён» — низкий результат работодателю не виден."
+      },
+      "Completeness": {
+        "properties": {
+          "percent": {
+            "type": "integer",
+            "title": "Percent"
+          },
+          "can_publish": {
+            "type": "boolean",
+            "title": "Can Publish"
+          },
+          "missing_required": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Required"
+          },
+          "missing_recommended": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Recommended"
+          },
+          "onboarding_completed": {
+            "type": "boolean",
+            "title": "Onboarding Completed"
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Step"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/OnboardingStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "percent",
+          "can_publish",
+          "missing_required",
+          "missing_recommended",
+          "onboarding_completed",
+          "next_step",
+          "steps"
+        ],
+        "title": "Completeness"
+      },
+      "ConsentGrant": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ConsentType"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Версия документа, с которой согласился пользователь"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "version"
+        ],
+        "title": "ConsentGrant"
+      },
+      "ConsentStatus": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/ConsentType"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "document_url": {
+            "type": "string",
+            "title": "Document Url"
+          },
+          "required_version": {
+            "type": "string",
+            "title": "Required Version"
+          },
+          "granted": {
+            "type": "boolean",
+            "title": "Granted",
+            "description": "Действует согласие на актуальную версию"
+          },
+          "granted_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted Version"
+          },
+          "granted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Granted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "document_url",
+          "required_version",
+          "granted",
+          "granted_version",
+          "granted_at"
+        ],
+        "title": "ConsentStatus"
+      },
+      "ConsentType": {
+        "type": "string",
+        "enum": [
+          "personal_data",
+          "publication"
+        ],
+        "title": "ConsentType"
+      },
+      "ContactAccess": {
+        "type": "string",
+        "enum": [
+          "granted",
+          "hidden"
+        ],
+        "title": "ContactAccess"
+      },
+      "ContactGrantRequest": {
+        "properties": {
+          "employer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Employer Id"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "invitation",
+              "application"
+            ],
+            "title": "Source"
+          },
+          "source_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Source Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employer_id",
+          "source",
+          "source_id"
+        ],
+        "title": "ContactGrantRequest"
+      },
+      "Course": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "organization": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2100.0,
+                "minimum": 1950.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Course"
+      },
+      "Education": {
+        "properties": {
+          "institution": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Institution"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EducationLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "faculty": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Faculty"
+          },
+          "specialization": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specialization"
+          },
+          "graduation_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2100.0,
+                "minimum": 1950.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graduation Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution"
+        ],
+        "title": "Education"
+      },
+      "EducationLevel": {
+        "type": "string",
+        "enum": [
+          "secondary_special",
+          "incomplete_higher",
+          "bachelor",
+          "specialist",
+          "master",
+          "phd"
+        ],
+        "title": "EducationLevel"
+      },
+      "EmploymentType": {
+        "type": "string",
+        "enum": [
+          "full_time",
+          "part_time",
+          "project",
+          "internship"
+        ],
+        "title": "EmploymentType"
+      },
+      "EventResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "aggregate_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Aggregate Id"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "aggregate_id",
+          "event_type",
+          "payload",
+          "created_at"
+        ],
+        "title": "EventResponse"
+      },
+      "Experience": {
+        "properties": {
+          "company": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Company"
+          },
+          "position": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Position"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "achievements": {
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Achievements"
+          },
+          "technologies": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Technologies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company",
+          "position",
+          "start_date"
+        ],
+        "title": "Experience"
+      },
+      "FspAchievementResponse": {
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "title": "External Id"
+          },
+          "event": {
+            "type": "string",
+            "title": "Event"
+          },
+          "discipline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discipline"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          },
+          "team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "external_id",
+          "event",
+          "discipline",
+          "level",
+          "result",
+          "place",
+          "team",
+          "event_date",
+          "url"
+        ],
+        "title": "FspAchievementResponse"
+      },
+      "FspInfo": {
+        "properties": {
+          "linked": {
+            "type": "boolean",
+            "title": "Linked"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "achievements": {
+            "items": {
+              "$ref": "#/components/schemas/FspAchievementResponse"
+            },
+            "type": "array",
+            "title": "Achievements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "linked",
+          "participant_id",
+          "synced_at",
+          "achievements"
+        ],
+        "title": "FspInfo"
+      },
+      "Grade": {
+        "type": "string",
+        "enum": [
+          "intern",
+          "junior",
+          "middle",
+          "senior",
+          "lead"
+        ],
+        "title": "Grade"
+      },
+      "GradeStatus": {
+        "type": "string",
+        "enum": [
+          "confirmed",
+          "not_confirmed"
+        ],
+        "title": "GradeStatus"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ITRole": {
+        "type": "string",
+        "enum": [
+          "backend",
+          "frontend",
+          "fullstack",
+          "mobile",
+          "devops",
+          "qa",
+          "qa_automation",
+          "data_scientist",
+          "ml_engineer",
+          "data_engineer",
+          "data_analyst",
+          "system_analyst",
+          "business_analyst",
+          "product_manager",
+          "project_manager",
+          "designer",
+          "gamedev",
+          "security",
+          "embedded",
+          "dba",
+          "team_lead",
+          "architect"
+        ],
+        "title": "ITRole"
+      },
+      "Industry": {
+        "type": "string",
+        "enum": [
+          "fintech",
+          "ecommerce",
+          "govtech",
+          "telecom",
+          "healthtech",
+          "edtech",
+          "gamedev",
+          "media",
+          "logistics",
+          "industry",
+          "energy",
+          "cybersecurity",
+          "ai",
+          "travel",
+          "real_estate",
+          "outsource",
+          "other"
+        ],
+        "title": "Industry"
+      },
+      "JobSearchStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "open",
+          "not_looking"
+        ],
+        "title": "JobSearchStatus"
+      },
+      "Language": {
+        "properties": {
+          "language": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Language"
+          },
+          "level": {
+            "$ref": "#/components/schemas/LanguageLevel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "language",
+          "level"
+        ],
+        "title": "Language"
+      },
+      "LanguageLevel": {
+        "type": "string",
+        "enum": [
+          "A1",
+          "A2",
+          "B1",
+          "B2",
+          "C1",
+          "C2",
+          "native"
+        ],
+        "title": "LanguageLevel"
+      },
+      "Link": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/LinkType"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "url"
+        ],
+        "title": "Link"
+      },
+      "LinkType": {
+        "type": "string",
+        "enum": [
+          "github",
+          "gitlab",
+          "linkedin",
+          "habr",
+          "portfolio",
+          "other"
+        ],
+        "title": "LinkType"
+      },
+      "OnboardingStep": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "completed"
+        ],
+        "title": "OnboardingStep"
+      },
+      "PrivacySettings": {
+        "properties": {
+          "show_birth_date": {
+            "type": "boolean",
+            "title": "Show Birth Date",
+            "default": true
+          },
+          "show_photo": {
+            "type": "boolean",
+            "title": "Show Photo",
+            "default": true
+          },
+          "show_salary": {
+            "type": "boolean",
+            "title": "Show Salary",
+            "default": true
+          },
+          "show_fsp_achievements": {
+            "type": "boolean",
+            "title": "Show Fsp Achievements",
+            "default": true
+          },
+          "hide_current_company": {
+            "type": "boolean",
+            "title": "Hide Current Company",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PrivacySettings",
+        "description": "Что из опубликованного профиля видно работодателям.\n\nКонтакты здесь не настраиваются: работодатель видит их только после\nтого, как кандидат принял его приглашение или сам откликнулся."
+      },
+      "ProfileResponse": {
+        "properties": {
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "middle_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Middle Name"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "relocation_ready": {
+            "type": "boolean",
+            "title": "Relocation Ready"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/ITRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/Skill"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "soft_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Soft Skills"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/Language"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "experience": {
+            "items": {
+              "$ref": "#/components/schemas/Experience"
+            },
+            "type": "array",
+            "title": "Experience"
+          },
+          "education": {
+            "items": {
+              "$ref": "#/components/schemas/Education"
+            },
+            "type": "array",
+            "title": "Education"
+          },
+          "courses": {
+            "items": {
+              "$ref": "#/components/schemas/Course"
+            },
+            "type": "array",
+            "title": "Courses"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "type": "array",
+            "title": "Projects"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "employment_types": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentType"
+            },
+            "type": "array",
+            "title": "Employment Types"
+          },
+          "work_formats": {
+            "items": {
+              "$ref": "#/components/schemas/WorkFormat"
+            },
+            "type": "array",
+            "title": "Work Formats"
+          },
+          "job_search_status": {
+            "$ref": "#/components/schemas/JobSearchStatus"
+          },
+          "total_experience_months": {
+            "type": "integer",
+            "title": "Total Experience Months"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "verified_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_specialization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ITRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade_verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade Verified At"
+          },
+          "birth_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Date"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "telegram": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram"
+          },
+          "salary_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary From"
+          },
+          "salary_currency": {
+            "type": "string",
+            "title": "Salary Currency"
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/PrivacySettings"
+          },
+          "has_photo": {
+            "type": "boolean",
+            "title": "Has Photo"
+          },
+          "actuality": {
+            "$ref": "#/components/schemas/Actuality"
+          },
+          "fsp": {
+            "$ref": "#/components/schemas/FspInfo"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/Completeness"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_name",
+          "first_name",
+          "middle_name",
+          "city",
+          "relocation_ready",
+          "headline",
+          "about",
+          "grade",
+          "industry",
+          "category",
+          "roles",
+          "skills",
+          "soft_skills",
+          "languages",
+          "experience",
+          "education",
+          "courses",
+          "projects",
+          "links",
+          "employment_types",
+          "work_formats",
+          "job_search_status",
+          "total_experience_months",
+          "user_id",
+          "status",
+          "published_at",
+          "verified_grade",
+          "verified_specialization",
+          "grade_verified_at",
+          "birth_date",
+          "age",
+          "phone",
+          "contact_email",
+          "telegram",
+          "salary_from",
+          "salary_currency",
+          "privacy",
+          "has_photo",
+          "actuality",
+          "fsp",
+          "completeness",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProfileResponse",
+        "description": "Профиль глазами владельца: все поля и служебная информация."
+      },
+      "ProfileUpdate": {
+        "properties": {
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "middle_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Middle Name"
+          },
+          "birth_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Date"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "relocation_ready": {
+            "type": "boolean",
+            "title": "Relocation Ready",
+            "default": false
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "telegram": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Links"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline",
+            "description": "Желаемая должность, например «Python-разработчик»"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/ITRole"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Roles"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/Skill"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Skills"
+          },
+          "soft_skills": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Soft Skills"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/Language"
+            },
+            "type": "array",
+            "maxItems": 15,
+            "title": "Languages"
+          },
+          "experience": {
+            "items": {
+              "$ref": "#/components/schemas/Experience"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Experience"
+          },
+          "education": {
+            "items": {
+              "$ref": "#/components/schemas/Education"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Education"
+          },
+          "courses": {
+            "items": {
+              "$ref": "#/components/schemas/Course"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Courses"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Projects"
+          },
+          "salary_from": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary From"
+          },
+          "salary_currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Salary Currency",
+            "default": "RUB"
+          },
+          "employment_types": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentType"
+            },
+            "type": "array",
+            "title": "Employment Types"
+          },
+          "work_formats": {
+            "items": {
+              "$ref": "#/components/schemas/WorkFormat"
+            },
+            "type": "array",
+            "title": "Work Formats"
+          },
+          "job_search_status": {
+            "$ref": "#/components/schemas/JobSearchStatus",
+            "default": "active"
+          },
+          "privacy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrivacySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProfileUpdate",
+        "description": "Частичное обновление: передаются только изменяемые поля.\n\nФронтенд может сохранять профиль по шагам онбординга."
+      },
+      "Project": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "technologies": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Technologies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Project"
+      },
+      "PublicProfileResponse": {
+        "properties": {
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "middle_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Middle Name"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "relocation_ready": {
+            "type": "boolean",
+            "title": "Relocation Ready"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/ITRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/Skill"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "soft_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Soft Skills"
+          },
+          "languages": {
+            "items": {
+              "$ref": "#/components/schemas/Language"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "experience": {
+            "items": {
+              "$ref": "#/components/schemas/Experience"
+            },
+            "type": "array",
+            "title": "Experience"
+          },
+          "education": {
+            "items": {
+              "$ref": "#/components/schemas/Education"
+            },
+            "type": "array",
+            "title": "Education"
+          },
+          "courses": {
+            "items": {
+              "$ref": "#/components/schemas/Course"
+            },
+            "type": "array",
+            "title": "Courses"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            },
+            "type": "array",
+            "title": "Projects"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "employment_types": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentType"
+            },
+            "type": "array",
+            "title": "Employment Types"
+          },
+          "work_formats": {
+            "items": {
+              "$ref": "#/components/schemas/WorkFormat"
+            },
+            "type": "array",
+            "title": "Work Formats"
+          },
+          "job_search_status": {
+            "$ref": "#/components/schemas/JobSearchStatus"
+          },
+          "total_experience_months": {
+            "type": "integer",
+            "title": "Total Experience Months"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "contact_access": {
+            "$ref": "#/components/schemas/ContactAccess"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "telegram": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram"
+          },
+          "salary_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary From"
+          },
+          "salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Currency"
+          },
+          "has_photo": {
+            "type": "boolean",
+            "title": "Has Photo"
+          },
+          "actuality": {
+            "$ref": "#/components/schemas/Actuality"
+          },
+          "fsp_achievements": {
+            "items": {
+              "$ref": "#/components/schemas/FspAchievementResponse"
+            },
+            "type": "array",
+            "title": "Fsp Achievements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_name",
+          "first_name",
+          "middle_name",
+          "city",
+          "relocation_ready",
+          "headline",
+          "about",
+          "grade",
+          "industry",
+          "category",
+          "roles",
+          "skills",
+          "soft_skills",
+          "languages",
+          "experience",
+          "education",
+          "courses",
+          "projects",
+          "links",
+          "employment_types",
+          "work_formats",
+          "job_search_status",
+          "total_experience_months",
+          "user_id",
+          "contact_access",
+          "published_at",
+          "age",
+          "phone",
+          "contact_email",
+          "telegram",
+          "salary_from",
+          "salary_currency",
+          "has_photo",
+          "actuality",
+          "fsp_achievements"
+        ],
+        "title": "PublicProfileResponse",
+        "description": "Профиль глазами работодателя (с учётом приватности)."
+      },
+      "ResumeImportResponse": {
+        "properties": {
+          "draft": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Draft"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "applied": {
+            "type": "boolean",
+            "title": "Applied"
+          },
+          "applied_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Applied Fields",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "draft",
+          "warnings",
+          "applied"
+        ],
+        "title": "ResumeImportResponse",
+        "description": "Данные, распознанные в PDF. Это подсказки для формы, а не готовый\nпрофиль: пользователь проверяет их перед сохранением."
+      },
+      "Skill": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SkillLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "years": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 50.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "Skill"
+      },
+      "SkillLevel": {
+        "type": "string",
+        "enum": [
+          "basic",
+          "intermediate",
+          "advanced",
+          "expert"
+        ],
+        "title": "SkillLevel"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WorkFormat": {
+        "type": "string",
+        "enum": [
+          "office",
+          "remote",
+          "hybrid"
+        ],
+        "title": "WorkFormat"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

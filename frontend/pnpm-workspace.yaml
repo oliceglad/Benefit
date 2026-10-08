@@ -1,0 +1,11 @@
+allowBuilds:
+  esbuild: true
+packages:
+  - '.'
+supportedArchitectures:
+  os:
+    - current
+  cpu:
+    - current
+  libc:
+    - current

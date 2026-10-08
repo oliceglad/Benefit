@@ -1,0 +1,53 @@
+schema_version: 1
+sources:
+  - id: shadcn-ui
+    repository: https://github.com/shadcn-ui/ui
+    commit: 0132174664c07d41262fb51012d0cc782e458e6c
+    license: MIT
+    license_file: LICENSE.md
+    components:
+      - source_path: apps/v4/registry/bases/radix/ui/button.tsx
+        local_path: src/shared/ui/button.tsx
+        changes: Adapted aliases and Benefit focus/size tokens.
+      - source_path: apps/v4/registry/bases/radix/ui/card.tsx
+        local_path: src/shared/ui/card.tsx
+        changes: Adapted aliases and responsive spacing.
+      - source_path: apps/v4/registry/bases/radix/ui/input.tsx
+        local_path: src/shared/ui/input.tsx
+        changes: Adapted aliases and control height.
+      - source_path: apps/v4/registry/bases/radix/ui/label.tsx
+        local_path: src/shared/ui/label.tsx
+        changes: Adapted aliases.
+      - source_path: apps/v4/registry/bases/radix/ui/alert.tsx
+        local_path: src/shared/ui/alert.tsx
+        changes: Adapted aliases and variants.
+      - source_path: apps/v4/registry/bases/radix/ui/input-otp.tsx
+        local_path: src/shared/ui/input-otp.tsx
+        changes: Adapted spacing and Benefit focus tokens; uses input-otp 1.4.2.
+  - id: shadcn-admin
+    repository: https://github.com/satnaing/shadcn-admin
+    commit: e16c87f213a5ba5e45964e9b67c792105ec74d26
+    license: MIT
+    license_file: LICENSE
+    components:
+      - source_path: src/features/auth/auth-layout.tsx
+        local_path: src/features/auth/ui/login-page.tsx
+        changes: Composition reference; rebranded for Benefit and removed donor logo/demo identity.
+      - source_path: src/features/auth/sign-in/index.tsx
+        local_path: src/features/auth/ui/login-page.tsx
+        changes: Composition reference; Russian product copy and real auth-service integration.
+      - source_path: src/features/auth/sign-in/components/user-auth-form.tsx
+        local_path: src/features/auth/ui/login-page.tsx
+        changes: Form reference; removed mocks/social login and added backend errors/rate limits.
+      - source_path: src/components/layout/authenticated-layout.tsx
+        local_path: src/app/layouts/candidate-layout.tsx
+        changes: Composition reference; reduced to candidate stage-1 navigation and real session.
+      - source_path: src/components/layout/header.tsx
+        local_path: src/app/layouts/candidate-layout.tsx
+        changes: Header reference; combined into a smaller responsive Benefit shell.
+  - id: tremor
+    repository: https://github.com/tremorlabs/tremor
+    commit: ca4d588f47820ff3d514d37fa4ee08a4222dec11
+    license: Apache-2.0
+    status: evaluated_not_incorporated
+    reason: Stage 1 has no chart or analytics requirement.
