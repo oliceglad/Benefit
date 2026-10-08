@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>{{ full_name or "Резюме" }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 16mm 18mm;
+    @bottom-left { content: "Резюме сформировано в Benefit · {{ generated_at }}"; font-family: "DejaVu Sans", "Arial", sans-serif; font-size: 7.5pt; color: #8a94a6; }
+    @bottom-right { content: counter(page) " / " counter(pages); font-family: "DejaVu Sans", "Arial", sans-serif; font-size: 7.5pt; color: #8a94a6; }
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", "Arial", sans-serif; font-size: 9.5pt; line-height: 1.45; color: #1f2933; margin: 0; }
+  header { display: flex; gap: 14pt; align-items: flex-start; padding-bottom: 10pt; border-bottom: 2pt solid #2563eb; }
+  header img { width: 78pt; height: 78pt; object-fit: cover; border-radius: 8pt; }
+  h1 { font-size: 19pt; margin: 0 0 3pt; line-height: 1.15; }
+  .headline { font-size: 12pt; font-weight: bold; color: #2563eb; margin: 0 0 4pt; }
+  .meta { color: #52606d; margin: 0 0 2pt; }
+  .grade { display: inline-block; background: #eff6ff; color: #1d4ed8; border-radius: 4pt; padding: 0 5pt; font-weight: bold; font-size: 8.5pt; }
+  .verified { background: #ecfdf5; color: #047857; }
+  h2 { font-size: 11pt; text-transform: uppercase; letter-spacing: .6pt; color: #2563eb; margin: 14pt 0 6pt; padding-bottom: 2pt; border-bottom: .6pt solid #d9e2ec; }
+  .entry { display: flex; gap: 12pt; margin-bottom: 9pt; page-break-inside: avoid; }
+  .period { width: 92pt; flex: none; color: #52606d; font-size: 8.5pt; }
+  .period small { display: block; color: #8a94a6; }
+  .body { flex: 1; }
+  .company { font-weight: bold; }
+  .position { font-weight: bold; color: #2563eb; }
+  .muted { color: #52606d; }
+  ul { margin: 3pt 0 0; padding: 0; list-style: none; }
+  li { margin-bottom: 1pt; padding-left: 10pt; text-indent: -10pt; }
+  .stack { color: #52606d; font-size: 8.5pt; margin-top: 2pt; }
+  p { margin: 0 0 4pt; }
+</style>
+</head>
+<body>
+<header>
+  {% if photo_data_uri %}<img src="{{ photo_data_uri }}" alt="">{% endif %}
+  <div>
+    <h1>{{ full_name or "Кандидат" }}</h1>
+    {% if headline %}<p class="headline">{{ headline }}</p>{% endif %}
+    <p class="meta">
+      {% if grade %}<span class="grade">{{ grade }}</span>{% endif %}
+      {% if verified_grade %}<span class="grade verified">Подтверждённый грейд: {{ verified_grade }}</span>{% endif %}
+    </p>
+    {% if meta %}<p class="meta">{{ meta | join(" · ") }}</p>{% endif %}
+  </div>
+</header>
+
+{% if contacts %}
+<h2>Контакты</h2>
+<p>{{ contacts | join(" · ") }}</p>
+{% endif %}
+
+{% if preferences %}
+<h2>Желаемая должность и зарплата</h2>
+{% for line in preferences %}<p>{{ line }}</p>{% endfor %}
+{% endif %}
+
+{% if about %}
+<h2>Обо мне</h2>
+{% for paragraph in about.split("\n") if paragraph.strip() %}<p>{{ paragraph }}</p>{% endfor %}
+{% endif %}
+
+{% if skills %}
+<h2>Ключевые навыки</h2>
+<p>{{ skills | join(" · ") }}</p>
+{% endif %}
+
+{% if experience %}
+<h2>Опыт работы{% if total_experience %} — {{ total_experience }}{% endif %}</h2>
+{% for job in experience %}
+<div class="entry">
+  <div class="period">{{ job.period }}<small>{{ job.duration }}</small></div>
+  <div class="body">
+    <div class="company">{{ job.company }}</div>
+    <div class="position">{{ job.position }}</div>
+    {% if job.city %}<div class="muted">{{ job.city }}</div>{% endif %}
+    {% if job.description %}{% for p in job.description.split("\n") if p.strip() %}<p>{{ p }}</p>{% endfor %}{% endif %}
+    {% if job.achievements %}<ul>{% for a in job.achievements %}<li>• {{ a }}</li>{% endfor %}</ul>{% endif %}
+    {% if job.technologies %}<div class="stack">Стек: {{ job.technologies | join(", ") }}</div>{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if projects %}
+<h2>Проекты</h2>
+{% for project in projects %}
+<div class="entry"><div class="body">
+  <div class="company">{{ project.name }}{% if project.role %} — {{ project.role }}{% endif %}</div>
+  {% if project.description %}<p>{{ project.description }}</p>{% endif %}
+  {% if project.url %}<div class="muted">{{ project.url }}</div>{% endif %}
+  {% if project.technologies %}<div class="stack">Стек: {{ project.technologies | join(", ") }}</div>{% endif %}
+</div></div>
+{% endfor %}
+{% endif %}
+
+{% if fsp_achievements %}
+<h2>Достижения ФСП</h2>
+{% for a in fsp_achievements %}
+<div class="entry">
+  <div class="period">{{ a.date }}</div>
+  <div class="body">
+    <div class="company">{{ a.event }}</div>
+    <div class="muted">{{ a.details }}</div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if education %}
+<h2>Образование</h2>
+{% for e in education %}
+<div class="entry">
+  <div class="period">{{ e.graduation_year or "" }}</div>
+  <div class="body">
+    <div class="company">{{ e.institution }}</div>
+    {% if e.details %}<div class="muted">{{ e.details }}</div>{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if courses %}
+<h2>Курсы и сертификаты</h2>
+{% for c in courses %}
+<div class="entry">
+  <div class="period">{{ c.year or "" }}</div>
+  <div class="body"><div class="company">{{ c.name }}</div>{% if c.organization %}<div class="muted">{{ c.organization }}</div>{% endif %}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if languages %}
+<h2>Знание языков</h2>
+{% for l in languages %}<p>{{ l }}</p>{% endfor %}
+{% endif %}
+
+{% if soft_skills %}
+<h2>Софт-скиллы</h2>
+<p>{{ soft_skills | join(" · ") }}</p>
+{% endif %}
+</body>
+</html>

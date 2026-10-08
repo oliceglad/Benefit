@@ -208,3 +208,95 @@ async def test_dev_callback_exchanges_code(
 
     assert response.status_code == 200
     assert "access_token" in response.json()
+
+
+async def link_via_provider(
+    client: AsyncClient, access_token: str
+) -> dict[str, list[str]]:
+    start = await client.post(
+        f"{API}/auth/oauth/fsp_id/link",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert start.status_code == 200, start.text
+    url = start.json()["authorization_url"]
+    state = parse_qs(urlparse(url).query)["state"][0]
+    callback = await client.get(
+        f"{API}/auth/oauth/fsp_id/callback", params={"code": "c", "state": state}
+    )
+    return parse_qs(urlparse(callback.headers["location"]).query)
+
+
+async def test_link_provider_to_existing_account(
+    client: AsyncClient, provider: FakeProvider, mail: FakeMailClient
+) -> None:
+    # Почта в ФСП ID другая — автоматической привязки по почте не будет.
+    tokens = await register_and_verify(client, mail, "dev@mail.ru")
+    auth = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    query = await link_via_provider(client, tokens["access_token"])
+    assert query == {"linked": ["fsp_id"]}
+
+    identities = (await client.get(f"{API}/users/me/identities", headers=auth)).json()
+    assert [i["provider"] for i in identities] == ["fsp_id"]
+
+    # Теперь через ФСП ID входим в тот же аккаунт.
+    login = await login_via_provider(client)
+    exchanged = await client.post(
+        f"{API}/auth/oauth/exchange", json={"code": login["code"][0]}
+    )
+    me = await client.get(
+        f"{API}/users/me",
+        headers={"Authorization": f"Bearer {exchanged.json()['access_token']}"},
+    )
+    assert me.json()["email"] == "dev@mail.ru"
+
+    unlink = await client.delete(f"{API}/users/me/identities/fsp_id", headers=auth)
+    assert unlink.status_code == 204
+
+
+async def test_link_identity_taken_by_another_user(
+    client: AsyncClient, provider: FakeProvider, mail: FakeMailClient
+) -> None:
+    await login_via_provider(client, role="candidate")  # создан другой пользователь
+    tokens = await register_and_verify(client, mail, "dev@mail.ru")
+
+    query = await link_via_provider(client, tokens["access_token"])
+
+    assert query["error"] == ["identity_taken"]
+
+
+async def test_cannot_unlink_last_login_method(
+    client: AsyncClient, provider: FakeProvider
+) -> None:
+    query = await login_via_provider(client, role="candidate")
+    tokens = await client.post(
+        f"{API}/auth/oauth/exchange", json={"code": query["code"][0]}
+    )
+
+    response = await client.delete(
+        f"{API}/users/me/identities/fsp_id",
+        headers={"Authorization": f"Bearer {tokens.json()['access_token']}"},
+    )
+
+    assert response.status_code == 409
+
+
+async def test_internal_identities_requires_token(
+    client: AsyncClient, provider: FakeProvider
+) -> None:
+    from app.core.config import settings
+    from app.core.jwt import decode_access_token as decode
+
+    query = await login_via_provider(client, role="candidate")
+    tokens = await client.post(
+        f"{API}/auth/oauth/exchange", json={"code": query["code"][0]}
+    )
+    user_id = decode(tokens.json()["access_token"])["sub"]
+    url = f"/internal/v1/users/{user_id}/identities"
+
+    assert (await client.get(url)).status_code == 401
+    response = await client.get(
+        url, headers={"X-Internal-Token": settings.internal_api_token}
+    )
+    assert response.status_code == 200
+    assert response.json()[0]["subject"] == "fsp-1"

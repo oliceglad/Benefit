@@ -45,6 +45,10 @@ class OAuthState(TimestampMixin, Base):
     nonce: Mapped[str] = mapped_column(String(64))
     # Роль, выбранная пользователем до входа: нужна при создании аккаунта.
     role: Mapped[UserRole | None] = mapped_column(user_role_enum)
+    # Заполнен, если вошедший пользователь привязывает внешний аккаунт.
+    link_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE")
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

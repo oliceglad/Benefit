@@ -65,6 +65,10 @@ class TokenResponse(BaseModel):
     refresh_expires_in: int
 
 
+class AuthorizationUrlResponse(BaseModel):
+    authorization_url: str
+
+
 class ProviderInfo(BaseModel):
     id: str
     name: str

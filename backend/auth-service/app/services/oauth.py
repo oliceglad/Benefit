@@ -2,6 +2,8 @@
 
 import logging
 import secrets
+import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -43,6 +45,14 @@ def _full_name(claims: dict[str, Any]) -> str | None:
     return " ".join(p for p in parts if p) or None
 
 
+@dataclass(frozen=True)
+class OAuthResult:
+    """Итог возврата от провайдера: код входа или факт привязки аккаунта."""
+
+    login_code: str | None = None
+    linked: bool = False
+
+
 class OAuthService:
     def __init__(self, session: AsyncSession, registry: ProviderRegistry) -> None:
         self.session = session
@@ -51,8 +61,17 @@ class OAuthService:
         self.identities = ExternalIdentityRepository(session)
         self.tokens = TokenService(session)
 
-    async def start(self, provider_id: str, role: UserRole | None) -> str:
-        """Сохраняет state + PKCE и возвращает URL страницы входа провайдера."""
+    async def start(
+        self,
+        provider_id: str,
+        role: UserRole | None = None,
+        link_user_id: uuid.UUID | None = None,
+    ) -> str:
+        """Сохраняет state + PKCE и возвращает URL страницы входа провайдера.
+
+        Если передан ``link_user_id``, после возврата внешний аккаунт
+        привязывается к этому пользователю вместо входа.
+        """
         provider = self.registry.get(provider_id)
         state = secrets.token_urlsafe(32)
         nonce = secrets.token_urlsafe(32)
@@ -76,18 +95,15 @@ class OAuthService:
                 code_verifier=code_verifier,
                 nonce=nonce,
                 role=role,
+                link_user_id=link_user_id,
                 expires_at=now + timedelta(minutes=settings.oauth_state_ttl_minutes),
             )
         )
         await self.session.commit()
         return url
 
-    async def complete(self, provider_id: str, code: str, state: str) -> str:
-        """Обрабатывает возврат от провайдера.
-
-        Returns:
-            Одноразовый код, который фронтенд обменяет на токены.
-        """
+    async def complete(self, provider_id: str, code: str, state: str) -> OAuthResult:
+        """Обрабатывает возврат от провайдера: вход или привязка аккаунта."""
         provider = self.registry.get(provider_id)
         stored = await self.session.get(OAuthState, state)
         if stored is None or stored.provider != provider.id:
@@ -107,6 +123,11 @@ class OAuthService:
             raise AppError("Провайдер не вернул ID-токен", code="provider_error")
         claims = await provider.verify_id_token(id_token, nonce=stored.nonce)
 
+        if stored.link_user_id is not None:
+            await self._link(provider, claims, stored.link_user_id)
+            await self.session.commit()
+            return OAuthResult(linked=True)
+
         user = await self._resolve_user(provider, claims, stored.role)
         if not user.is_active:
             raise ForbiddenError("Аккаунт заблокирован", code="account_disabled")
@@ -121,7 +142,7 @@ class OAuthService:
             )
         )
         await self.session.commit()
-        return login_code
+        return OAuthResult(login_code=login_code)
 
     async def exchange(self, login_code: str) -> TokenResponse:
         stored = await self.session.scalar(
@@ -140,6 +161,34 @@ class OAuthService:
         tokens = await self.tokens.issue(user)
         await self.session.commit()
         return tokens
+
+    async def _link(
+        self, provider: OIDCProvider, claims: dict[str, Any], user_id: uuid.UUID
+    ) -> None:
+        subject = str(claims["sub"])
+        identity = await self.identities.get_by_subject(provider.id, subject)
+        if identity is not None:
+            if identity.user_id != user_id:
+                raise ConflictError(
+                    "Этот аккаунт уже привязан к другому пользователю",
+                    code="identity_taken",
+                )
+            return
+        if await self.identities.get_for_user(user_id, provider.id) is not None:
+            raise ConflictError(
+                "К профилю уже привязан другой аккаунт этого провайдера",
+                code="provider_already_linked",
+            )
+        self.session.add(
+            ExternalIdentity(
+                user_id=user_id,
+                provider=provider.id,
+                subject=subject,
+                email=(claims.get("email") or "").lower() or None,
+            )
+        )
+        await self.session.flush()
+        logger.info("Linked %s identity to user %s", provider.id, user_id)
 
     async def _resolve_user(
         self,

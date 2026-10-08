@@ -114,3 +114,13 @@ async def test_rejects_unknown_redirect_uri(client: AsyncClient) -> None:
         },
     )
     assert response.status_code == 400
+
+
+async def test_achievements_require_client_credentials(client: AsyncClient) -> None:
+    sub = next(iter(MOCK_USERS))
+    url = f"/api/v1/participants/{sub}/achievements"
+
+    assert (await client.get(url)).status_code == 401
+    response = await client.get(url, auth=(settings.client_id, settings.client_secret))
+    assert response.status_code == 200
+    assert response.json()["items"]

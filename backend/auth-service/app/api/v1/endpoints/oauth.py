@@ -7,11 +7,16 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 
-from app.api.deps import OAuthServiceDep, ProviderRegistryDep
+from app.api.deps import CurrentUser, OAuthServiceDep, ProviderRegistryDep
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.models.user import UserRole
-from app.schemas.auth import OAuthExchangeRequest, ProviderInfo, TokenResponse
+from app.schemas.auth import (
+    AuthorizationUrlResponse,
+    OAuthExchangeRequest,
+    ProviderInfo,
+    TokenResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +52,19 @@ async def authorize(
     return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
 
 
+@router.post("/oauth/{provider}/link", response_model=AuthorizationUrlResponse)
+async def link(
+    provider: str, user: CurrentUser, service: OAuthServiceDep
+) -> AuthorizationUrlResponse:
+    """Привязка внешнего аккаунта (например, ФСП ID) к текущему пользователю.
+
+    Фронтенд перенаправляет браузер на ``authorization_url``; после входа
+    у провайдера браузер вернётся на фронтенд с ``?linked=<provider>``.
+    """
+    url = await service.start(provider, link_user_id=user.id)
+    return AuthorizationUrlResponse(authorization_url=url)
+
+
 @router.get("/oauth/{provider}/callback", include_in_schema=False)
 async def callback(
     provider: str,
@@ -62,11 +80,14 @@ async def callback(
     if not code or not state:
         return _frontend_redirect(error="invalid_request")
     try:
-        login_code = await service.complete(provider, code, state)
+        result = await service.complete(provider, code, state)
     except AppError as exc:
         logger.info("OAuth login via %s failed: %s", provider, exc.code)
         return _frontend_redirect(error=exc.code)
-    return _frontend_redirect(code=login_code)
+    if result.linked:
+        return _frontend_redirect(linked=provider)
+    assert result.login_code is not None
+    return _frontend_redirect(code=result.login_code)
 
 
 @router.post("/oauth/exchange", response_model=TokenResponse)
@@ -77,18 +98,19 @@ async def exchange(
     return await service.exchange(data.code)
 
 
-@router.get(
-    "/oauth-dev-callback", response_model=TokenResponse, include_in_schema=False
-)
+@router.get("/oauth-dev-callback", response_model=None, include_in_schema=False)
 async def dev_callback(
     service: OAuthServiceDep,
     code: str | None = None,
     error: str | None = None,
-) -> TokenResponse:
+    linked: str | None = None,
+) -> TokenResponse | dict[str, str]:
     """Заглушка страницы фронтенда для локальной разработки:
     сразу меняет код на токены и показывает их."""
     if settings.app_env != "local":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    if linked:
+        return {"linked": linked}
     if error or not code:
         raise AppError(f"Вход не выполнен: {error}", code=error or "invalid_request")
     return await service.exchange(code)

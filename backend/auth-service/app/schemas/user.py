@@ -8,6 +8,22 @@ from pydantic import BaseModel, ConfigDict
 from app.models.user import UserRole
 
 
+class IdentityResponse(BaseModel):
+    """Привязанный внешний аккаунт (ФСП ID, Keycloak)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    provider: str
+    email: str | None
+    created_at: datetime
+
+
+class InternalIdentityResponse(IdentityResponse):
+    """Для других сервисов: включает идентификатор во внешней системе."""
+
+    subject: str
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -102,6 +102,60 @@ MOCK_USERS = {
 }
 
 
+# Достижения участников в соревнованиях ФСП. Настоящий API ФСП пока
+# неизвестен — формат выбран так, чтобы его было легко сопоставить.
+MOCK_ACHIEVEMENTS: dict[str, list[dict[str, Any]]] = {
+    "c2f1a7e0-0001-4a5b-9c1d-000000000001": [
+        {
+            "id": "ach-1001",
+            "event": "Всероссийский чемпионат по продуктовому программированию",
+            "discipline": "Продуктовое программирование",
+            "level": "federal",
+            "result": "winner",
+            "place": 1,
+            "team": "ByteForce",
+            "date": "2025-11-23",
+            "url": "https://fsp-russia.com/",
+        },
+        {
+            "id": "ach-1002",
+            "event": "Кубок России по спортивному программированию",
+            "discipline": "Алгоритмическое программирование",
+            "level": "federal",
+            "result": "prize",
+            "place": 3,
+            "team": None,
+            "date": "2025-04-12",
+            "url": "https://fsp-russia.com/",
+        },
+        {
+            "id": "ach-1003",
+            "event": "Региональный хакатон «Цифровой прорыв»",
+            "discipline": "Продуктовое программирование",
+            "level": "regional",
+            "result": "participant",
+            "place": None,
+            "team": "ByteForce",
+            "date": "2024-09-30",
+            "url": None,
+        },
+    ],
+    "c2f1a7e0-0002-4a5b-9c1d-000000000002": [
+        {
+            "id": "ach-2001",
+            "event": "Чемпионат России по информационной безопасности (CTF)",
+            "discipline": "Информационная безопасность",
+            "level": "federal",
+            "result": "prize",
+            "place": 2,
+            "team": "NullPointer",
+            "date": "2025-10-05",
+            "url": "https://fsp-russia.com/",
+        },
+    ],
+}
+
+
 @dataclass
 class AuthorizationCode:
     user: MockUser
@@ -389,8 +443,27 @@ async def userinfo(request: Request) -> JSONResponse:
     return JSONResponse({k: claims[k] for k in fields if k in claims})
 
 
+participants_router = APIRouter(prefix="/api/v1/participants", tags=["participants"])
+
+
+@participants_router.get("/{sub}/achievements")
+async def participant_achievements(
+    sub: str, authorization: Annotated[str | None, Header()] = None
+) -> JSONResponse:
+    """Достижения участника. Доступно клиенту по client_id/client_secret."""
+    client_id, client_secret = _client_credentials(authorization, "", "")
+    if client_id != settings.client_id or not hmac.compare_digest(
+        client_secret, settings.client_secret
+    ):
+        return oidc_error("invalid_client", "Invalid client credentials", 401)
+    return JSONResponse(
+        {"participant_id": sub, "items": MOCK_ACHIEVEMENTS.get(sub, [])}
+    )
+
+
 app = FastAPI(title="FSP ID (mock)")
 app.include_router(router)
+app.include_router(participants_router)
 
 
 @app.get("/health")

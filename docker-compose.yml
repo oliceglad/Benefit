@@ -14,6 +14,7 @@ services:
     depends_on:
       - core
       - auth-service
+      - candidate-service
 
   # --- core: вакансии и подбор --------------------------------------------
   db:
@@ -104,6 +105,49 @@ services:
       mail-service:
         condition: service_started
 
+  # --- Кандидаты: профиль и резюме ----------------------------------------
+  candidate-db:
+    <<: *service-defaults
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${CANDIDATE_DB_NAME:-candidates}
+      POSTGRES_USER: ${CANDIDATE_DB_USER:-candidates}
+      POSTGRES_PASSWORD: ${CANDIDATE_DB_PASSWORD:-candidates}
+    ports:
+      - "${CANDIDATE_DB_PORT:-5434}:5432"
+    volumes:
+      - candidate_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  candidate-service:
+    <<: *service-defaults
+    build:
+      context: ./backend/candidate-service
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HOST: candidate-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${CANDIDATE_DB_NAME:-candidates}
+      POSTGRES_USER: ${CANDIDATE_DB_USER:-candidates}
+      POSTGRES_PASSWORD: ${CANDIDATE_DB_PASSWORD:-candidates}
+      AUTH_JWKS_URL: http://auth-service:8000/.well-known/jwks.json
+      AUTH_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
+      AUTH_INTERNAL_URL: http://auth-service:8000
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
+      FSP_API_URL: http://fsp-id-mock:8000
+      FSP_CLIENT_ID: ${FSP_ID_CLIENT_ID:-benefit}
+      FSP_CLIENT_SECRET: ${FSP_ID_CLIENT_SECRET:-fsp-dev-secret}
+    depends_on:
+      candidate-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+
   # --- Почта ---------------------------------------------------------------
   mail-service:
     <<: *service-defaults
@@ -167,3 +211,4 @@ volumes:
   postgres_data:
   auth_db_data:
   auth_keys:
+  candidate_db_data:
