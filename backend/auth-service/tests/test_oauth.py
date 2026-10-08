@@ -300,3 +300,36 @@ async def test_internal_identities_requires_token(
     )
     assert response.status_code == 200
     assert response.json()[0]["subject"] == "fsp-1"
+
+
+async def test_internal_user(client: AsyncClient, mail: FakeMailClient) -> None:
+    from app.core.config import settings
+    from app.core.jwt import decode_access_token as decode
+
+    tokens = await register_and_verify(client, mail, "dev@mail.ru", "employer")
+    user_id = decode(tokens["access_token"])["sub"]
+    headers = {"X-Internal-Token": settings.internal_api_token}
+
+    response = await client.get(f"/internal/v1/users/{user_id}", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "dev@mail.ru"
+    assert response.json()["role"] == "employer"
+    missing = await client.get(
+        "/internal/v1/users/00000000-0000-0000-0000-000000000000", headers=headers
+    )
+    assert missing.status_code == 404
+
+
+async def test_admin_role_from_provider_is_ignored(
+    client: AsyncClient, provider: FakeProvider
+) -> None:
+    provider.claims["realm_access"] = {"roles": ["admin"]}
+
+    query = await login_via_provider(client)
+
+    assert query["error"] == ["role_required"]
+    start = await client.get(
+        f"{API}/auth/oauth/fsp_id/authorize", params={"role": "admin"}
+    )
+    assert start.status_code == 422

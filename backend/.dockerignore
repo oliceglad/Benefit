@@ -1,0 +1,14 @@
+# Контекст сборки — папка backend (нужен доступ к libs/).
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.env
+**/tests
+**/keys
+e2e
+**/content

@@ -11,12 +11,13 @@ from datetime import UTC, date, datetime
 from typing import Any, Protocol
 
 import httpx
+from benefit_common.errors import AppError
+from benefit_common.internal import InternalClient, raise_for_client_error
 from fastapi import status
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppError
 from app.models.candidate import CandidateProfile, FspAchievement
 from app.services.events import EventType, record_event
 
@@ -38,17 +39,12 @@ class AchievementsClient(Protocol):
 
 
 class AuthInternalClient:
+    def __init__(self) -> None:
+        self.client = InternalClient(settings.auth_internal_url, service="auth")
+
     async def fsp_participant_id(self, user_id: uuid.UUID) -> str | None:
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(
-                    f"{settings.auth_internal_url}/internal/v1/users/{user_id}/identities",
-                    headers={"X-Internal-Token": settings.internal_api_token},
-                )
-                response.raise_for_status()
-        except httpx.HTTPError as exc:
-            logger.exception("auth-service identities request failed")
-            raise ExternalServiceError("Не удалось проверить привязку ФСП ID") from exc
+        response = await self.client.get(f"/internal/v1/users/{user_id}/identities")
+        raise_for_client_error(response)
         for identity in response.json():
             if identity["provider"] == settings.fsp_provider_id:
                 return identity["subject"]

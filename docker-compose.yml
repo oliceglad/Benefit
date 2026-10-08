@@ -1,7 +1,44 @@
 name: benefit
 
+# --- Общие шаблоны -------------------------------------------------------------
+
 x-service-defaults: &service-defaults
   restart: unless-stopped
+
+# PostgreSQL: у каждого сервиса своя база (database per service).
+x-postgres: &postgres
+  <<: *service-defaults
+  image: postgres:17-alpine
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    interval: 5s
+    timeout: 5s
+    retries: 10
+
+# Переменные, общие для сервисов на библиотеке benefit-common:
+# проверка JWT auth-service и токен межсервисных вызовов.
+x-common-env: &common-env
+  APP_ENV: ${APP_ENV:-local}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  AUTH_JWKS_URL: http://auth-service:8000/.well-known/jwks.json
+  AUTH_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
+  INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
+
+# Внутренние адреса сервисов (docker-сеть).
+x-service-urls: &service-urls
+  AUTH_INTERNAL_URL: http://auth-service:8000
+  CANDIDATE_SERVICE_URL: http://candidate-service:8000
+  NOTIFICATION_SERVICE_URL: http://notification-service:8000
+  CHAT_SERVICE_URL: http://chat-service:8000
+  EMPLOYER_SERVICE_URL: http://employer-service:8000
+  MATCHING_SERVICE_URL: http://matching-service:8000
+  MAIL_SERVICE_URL: http://mail-service:8000
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 20s
 
 services:
   # --- API-шлюз: единственная точка входа снаружи -------------------------
@@ -12,13 +49,28 @@ services:
     ports:
       - "${GATEWAY_PORT:-8000}:80"
     depends_on:
-      - core
-      - auth-service
-      - candidate-service
+      core:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      candidate-service:
+        condition: service_healthy
+      assessment-service:
+        condition: service_healthy
+      applications-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+      employer-service:
+        condition: service_healthy
+      matching-service:
+        condition: service_healthy
 
-  # --- core: вакансии и подбор --------------------------------------------
+  # --- core --------------------------------------------------------------- --------------------------------------------
   db:
-    <<: *service-defaults
+    <<: *postgres
     image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -28,31 +80,28 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
   core:
     <<: *service-defaults
     build:
-      context: ./backend/core
+      context: ./backend
+      dockerfile: core/Dockerfile
     env_file:
       - .env
     environment:
+      <<: *common-env
       POSTGRES_HOST: db
       POSTGRES_PORT: 5432
-      AUTH_JWKS_URL: http://auth-service:8000/.well-known/jwks.json
-      AUTH_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
 
   # --- Аутентификация ------------------------------------------------------
   auth-db:
-    <<: *service-defaults
-    image: postgres:17-alpine
+    <<: *postgres
     environment:
       POSTGRES_DB: ${AUTH_DB_NAME:-auth}
       POSTGRES_USER: ${AUTH_DB_USER:-auth}
@@ -61,11 +110,6 @@ services:
       - "${AUTH_DB_PORT:-5433}:5432"
     volumes:
       - auth_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
   auth-service:
     <<: *service-defaults
@@ -103,12 +147,14 @@ services:
       auth-db:
         condition: service_healthy
       mail-service:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
 
   # --- Кандидаты: профиль и резюме ----------------------------------------
   candidate-db:
-    <<: *service-defaults
-    image: postgres:17-alpine
+    <<: *postgres
     environment:
       POSTGRES_DB: ${CANDIDATE_DB_NAME:-candidates}
       POSTGRES_USER: ${CANDIDATE_DB_USER:-candidates}
@@ -117,28 +163,19 @@ services:
       - "${CANDIDATE_DB_PORT:-5434}:5432"
     volumes:
       - candidate_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
   candidate-service:
     <<: *service-defaults
     build:
-      context: ./backend/candidate-service
+      context: ./backend
+      dockerfile: candidate-service/Dockerfile
     environment:
-      APP_ENV: ${APP_ENV:-local}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      <<: [*common-env, *service-urls]
       POSTGRES_HOST: candidate-db
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${CANDIDATE_DB_NAME:-candidates}
       POSTGRES_USER: ${CANDIDATE_DB_USER:-candidates}
       POSTGRES_PASSWORD: ${CANDIDATE_DB_PASSWORD:-candidates}
-      AUTH_JWKS_URL: http://auth-service:8000/.well-known/jwks.json
-      AUTH_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
-      AUTH_INTERNAL_URL: http://auth-service:8000
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
       FSP_API_URL: http://fsp-id-mock:8000
       FSP_CLIENT_ID: ${FSP_ID_CLIENT_ID:-benefit}
       FSP_CLIENT_SECRET: ${FSP_ID_CLIENT_SECRET:-fsp-dev-secret}
@@ -146,9 +183,223 @@ services:
       candidate-db:
         condition: service_healthy
       auth-service:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/candidates/health', timeout=3)"]
 
-  # --- Почта ---------------------------------------------------------------
+  # --- Тестирование: подтверждение грейда ---------------------------------
+  assessment-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: ${ASSESSMENT_DB_NAME:-assessments}
+      POSTGRES_USER: ${ASSESSMENT_DB_USER:-assessments}
+      POSTGRES_PASSWORD: ${ASSESSMENT_DB_PASSWORD:-assessments}
+    ports:
+      - "${ASSESSMENT_DB_PORT:-5435}:5432"
+    volumes:
+      - assessment_db_data:/var/lib/postgresql/data
+
+  assessment-service:
+    <<: *service-defaults
+    build:
+      context: ./backend
+      dockerfile: assessment-service/Dockerfile
+    environment:
+      <<: [*common-env, *service-urls]
+      POSTGRES_HOST: assessment-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${ASSESSMENT_DB_NAME:-assessments}
+      POSTGRES_USER: ${ASSESSMENT_DB_USER:-assessments}
+      POSTGRES_PASSWORD: ${ASSESSMENT_DB_PASSWORD:-assessments}
+      ATTEMPT_COOLDOWN_HOURS: ${ASSESSMENT_ATTEMPT_COOLDOWN_HOURS:-168}
+    volumes:
+      # Пакеты тестов (с ответами) — вне образа и вне git, импортируются при старте.
+      - ./backend/assessment-service/content:/app/content:ro
+    depends_on:
+      assessment-db:
+        condition: service_healthy
+      candidate-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/assessments/health', timeout=3)"]
+
+  # --- Приглашения и отклики ----------------------------------------------
+  applications-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: ${APPLICATIONS_DB_NAME:-applications}
+      POSTGRES_USER: ${APPLICATIONS_DB_USER:-applications}
+      POSTGRES_PASSWORD: ${APPLICATIONS_DB_PASSWORD:-applications}
+    ports:
+      - "${APPLICATIONS_DB_PORT:-5437}:5432"
+    volumes:
+      - applications_db_data:/var/lib/postgresql/data
+
+  applications-service:
+    <<: *service-defaults
+    build:
+      context: ./backend
+      dockerfile: applications-service/Dockerfile
+    environment:
+      <<: [*common-env, *service-urls]
+      POSTGRES_HOST: applications-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${APPLICATIONS_DB_NAME:-applications}
+      POSTGRES_USER: ${APPLICATIONS_DB_USER:-applications}
+      POSTGRES_PASSWORD: ${APPLICATIONS_DB_PASSWORD:-applications}
+    depends_on:
+      applications-db:
+        condition: service_healthy
+      candidate-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/invitations/health', timeout=3)"]
+
+  # --- Работодатель: компания, потребности, вакансии ----------------------
+  employer-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: ${EMPLOYER_DB_NAME:-employers}
+      POSTGRES_USER: ${EMPLOYER_DB_USER:-employers}
+      POSTGRES_PASSWORD: ${EMPLOYER_DB_PASSWORD:-employers}
+    ports:
+      - "${EMPLOYER_DB_PORT:-5439}:5432"
+    volumes:
+      - employer_db_data:/var/lib/postgresql/data
+
+  employer-service:
+    <<: *service-defaults
+    build:
+      context: ./backend
+      dockerfile: employer-service/Dockerfile
+    environment:
+      <<: [*common-env, *service-urls]
+      POSTGRES_HOST: employer-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${EMPLOYER_DB_NAME:-employers}
+      POSTGRES_USER: ${EMPLOYER_DB_USER:-employers}
+      POSTGRES_PASSWORD: ${EMPLOYER_DB_PASSWORD:-employers}
+    depends_on:
+      employer-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/employers/health', timeout=3)"]
+
+  # --- Подбор и поиск кандидатов -------------------------------------------
+  matching-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: ${MATCHING_DB_NAME:-matching}
+      POSTGRES_USER: ${MATCHING_DB_USER:-matching}
+      POSTGRES_PASSWORD: ${MATCHING_DB_PASSWORD:-matching}
+    ports:
+      - "${MATCHING_DB_PORT:-5440}:5432"
+    volumes:
+      - matching_db_data:/var/lib/postgresql/data
+
+  matching-service:
+    <<: *service-defaults
+    build:
+      context: ./backend
+      dockerfile: matching-service/Dockerfile
+    environment:
+      <<: [*common-env, *service-urls]
+      POSTGRES_HOST: matching-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${MATCHING_DB_NAME:-matching}
+      POSTGRES_USER: ${MATCHING_DB_USER:-matching}
+      POSTGRES_PASSWORD: ${MATCHING_DB_PASSWORD:-matching}
+    depends_on:
+      matching-db:
+        condition: service_healthy
+      candidate-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/talent/health', timeout=3)"]
+
+  # --- Переписка и регулярные задания ------------------------------------
+  chat-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: ${CHAT_DB_NAME:-chat}
+      POSTGRES_USER: ${CHAT_DB_USER:-chat}
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:-chat}
+    ports:
+      - "${CHAT_DB_PORT:-5438}:5432"
+    volumes:
+      - chat_db_data:/var/lib/postgresql/data
+
+  chat-service:
+    <<: *service-defaults
+    build:
+      context: ./backend
+      dockerfile: chat-service/Dockerfile
+    environment:
+      <<: [*common-env, *service-urls]
+      POSTGRES_HOST: chat-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${CHAT_DB_NAME:-chat}
+      POSTGRES_USER: ${CHAT_DB_USER:-chat}
+      POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:-chat}
+      FILES_DIR: /app/data/files
+    volumes:
+      - chat_files:/app/data/files
+    depends_on:
+      chat-db:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      candidate-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/chat/health', timeout=3)"]
+
+  # --- Уведомления и почта ------------------------------------------------
+  notification-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: ${NOTIFICATION_DB_NAME:-notifications}
+      POSTGRES_USER: ${NOTIFICATION_DB_USER:-notifications}
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-notifications}
+    ports:
+      - "${NOTIFICATION_DB_PORT:-5436}:5432"
+    volumes:
+      - notification_db_data:/var/lib/postgresql/data
+
+  notification-service:
+    <<: *service-defaults
+    build:
+      context: ./backend
+      dockerfile: notification-service/Dockerfile
+    environment:
+      <<: [*common-env, *service-urls]
+      POSTGRES_HOST: notification-db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${NOTIFICATION_DB_NAME:-notifications}
+      POSTGRES_USER: ${NOTIFICATION_DB_USER:-notifications}
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-notifications}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/notifications/health', timeout=3)"]
+
   mail-service:
     <<: *service-defaults
     build:
@@ -163,6 +414,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_USE_TLS: ${SMTP_USE_TLS:-false}
       SMTP_START_TLS: ${SMTP_START_TLS:-false}
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
 
   # Тестовый SMTP-сервер: все письма видны в веб-интерфейсе.
   mailpit:
@@ -212,3 +466,10 @@ volumes:
   auth_db_data:
   auth_keys:
   candidate_db_data:
+  assessment_db_data:
+  applications_db_data:
+  notification_db_data:
+  chat_db_data:
+  chat_files:
+  employer_db_data:
+  matching_db_data:

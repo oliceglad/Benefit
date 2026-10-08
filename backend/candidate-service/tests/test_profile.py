@@ -176,7 +176,8 @@ async def test_employer_sees_only_published_profiles(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["phone"] == "+79123456789"
+    # Контакты закрыты до принятия приглашения или отклика.
+    assert (body["phone"], body["contact_access"]) == (None, "hidden")
     assert "birth_date" not in body
     assert "privacy" not in body
 
@@ -188,7 +189,6 @@ async def test_privacy_settings_applied_for_employer(
         client,
         candidate,
         privacy={
-            "show_contacts": False,
             "show_birth_date": False,
             "show_salary": False,
             "hide_current_company": True,

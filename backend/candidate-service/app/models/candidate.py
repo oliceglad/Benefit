@@ -69,9 +69,17 @@ class CandidateProfile(TimestampMixin, Base):
     headline: Mapped[str | None] = mapped_column(String(200))
     about: Mapped[str | None] = mapped_column(Text)
     grade: Mapped[str | None] = mapped_column(String(16))
-    # Грейд, подтверждённый тестированием (заполняет assessment-service).
+    # Отрасль (из опроса перед тестированием или указана вручную).
+    industry: Mapped[str | None] = mapped_column(String(32))
+    # Результат тестирования (заполняет assessment-service): лучший
+    # действующий подтверждённый грейд и специализация, по которой он получен.
     verified_grade: Mapped[str | None] = mapped_column(String(16))
+    verified_specialization: Mapped[str | None] = mapped_column(String(32))
     grade_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Детали подтверждения: тест, процент, попытка.
+    verification: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}"
+    )
     roles: Mapped[list[str]] = _json_list()
     skills: Mapped[list[dict[str, Any]]] = _json_list()
     soft_skills: Mapped[list[str]] = _json_list()
@@ -146,6 +154,49 @@ class Consent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(String(255))
+
+
+class ContactGrant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Доступ работодателя к контактам кандидата.
+
+    Появляется, когда кандидат принимает приглашение работодателя или сам
+    откликается на его вакансию (присылает applications-service). Без
+    доступа работодатель контакты не видит.
+    """
+
+    __tablename__ = "contact_grants"
+    __table_args__ = (UniqueConstraint("candidate_id", "employer_id"),)
+
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("candidate_profiles.user_id", ondelete="CASCADE"), index=True
+    )
+    employer_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    # Чем открыт доступ (последнее): invitation — принятое приглашение,
+    # application — отклик кандидата на вакансию.
+    source: Mapped[str] = mapped_column(String(16), default="invitation")
+    source_id: Mapped[uuid.UUID]
+
+
+class CandidateActivity(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Активность кандидата из других сервисов (задания работодателей).
+
+    Идемпотентна по (user_id, kind, ref_id): повторная доставка не
+    создаёт дублей. Используется для расчёта актуальности профиля.
+    """
+
+    __tablename__ = "candidate_activities"
+    __table_args__ = (UniqueConstraint("user_id", "kind", "ref_id"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("candidate_profiles.user_id", ondelete="CASCADE"), index=True
+    )
+    # task_* — задания из переписки, employer_test_* — тесты работодателей
+    kind: Mapped[str] = mapped_column(String(32))
+    ref_id: Mapped[str] = mapped_column(String(64))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}"
+    )
 
 
 class OutboxEvent(Base):

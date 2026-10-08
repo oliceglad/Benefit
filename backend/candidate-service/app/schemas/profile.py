@@ -3,6 +3,7 @@
 import re
 import uuid
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Annotated, Any, Self
 
 from pydantic import (
@@ -22,6 +23,7 @@ from app.domain.dictionaries import (
     EducationLevel,
     EmploymentType,
     Grade,
+    Industry,
     ITRole,
     JobSearchStatus,
     LanguageLevel,
@@ -135,9 +137,12 @@ class Project(BaseModel):
 
 
 class PrivacySettings(BaseModel):
-    """Что из опубликованного профиля видно работодателям."""
+    """Что из опубликованного профиля видно работодателям.
 
-    show_contacts: bool = True
+    Контакты здесь не настраиваются: работодатель видит их только после
+    того, как кандидат принял его приглашение или сам откликнулся.
+    """
+
     show_birth_date: bool = True
     show_photo: bool = True
     show_salary: bool = True
@@ -176,6 +181,7 @@ class ProfileUpdate(BaseModel):
     )
     about: LongText | None = None
     grade: Grade | None = None
+    industry: Industry | None = None
     roles: list[ITRole] = Field(default_factory=list, max_length=5)
     skills: list[Skill] = Field(default_factory=list, max_length=100)
     soft_skills: list[SoftSkillName] = Field(default_factory=list, max_length=30)
@@ -291,6 +297,50 @@ class Completeness(BaseModel):
     steps: list[OnboardingStep]
 
 
+class GradeStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    NOT_CONFIRMED = "not_confirmed"
+
+
+class Category(BaseModel):
+    """Категория кандидата, видимая работодателю: отрасль, специализация
+    и грейд со статусом подтверждения.
+
+    Если тест показал грейд ниже заявленного, показывается заявленный грейд
+    со статусом «не подтверждён» — низкий результат работодателю не виден.
+    """
+
+    industry: Industry | None
+    specialization: ITRole | None
+    grade: Grade | None
+    grade_status: GradeStatus
+    verified_at: datetime | None = None
+    test_title: str | None = None
+    percent: float | None = None
+
+
+class ActualityStatus(StrEnum):
+    ACTIVE = "active"
+    RECENT = "recent"
+    STALE = "stale"
+
+
+class Actuality(BaseModel):
+    """Актуальность профиля: насколько недавно кандидат проявлял активность
+    (обновлял профиль, проходил тест, решал задания работодателей)."""
+
+    status: ActualityStatus
+    last_active_at: datetime
+    # Задания работодателей за последние 180 дней.
+    tasks_assigned: int
+    tasks_submitted: int
+    tasks_passed: int
+    tasks_failed: int
+    tasks_expired: int
+    # Тесты, присланные работодателями.
+    employer_tests_completed: int
+
+
 class ProfileData(BaseModel):
     """Поля профиля, общие для всех представлений."""
 
@@ -302,8 +352,8 @@ class ProfileData(BaseModel):
     headline: str | None
     about: str | None
     grade: Grade | None
-    verified_grade: Grade | None
-    grade_verified_at: datetime | None
+    industry: Industry | None
+    category: Category
     roles: list[ITRole]
     skills: list[Skill]
     soft_skills: list[str]
@@ -325,6 +375,10 @@ class ProfileResponse(ProfileData):
     user_id: uuid.UUID
     status: str
     published_at: datetime | None
+    # Сырой результат тестирования — только владельцу профиля.
+    verified_grade: Grade | None
+    verified_specialization: ITRole | None
+    grade_verified_at: datetime | None
     birth_date: date | None
     age: int | None
     phone: str | None
@@ -334,16 +388,24 @@ class ProfileResponse(ProfileData):
     salary_currency: str
     privacy: PrivacySettings
     has_photo: bool
+    actuality: Actuality
     fsp: FspInfo
     completeness: Completeness
     created_at: datetime
     updated_at: datetime
 
 
+class ContactAccess(StrEnum):
+    # Кандидат принял приглашение этого работодателя или откликнулся сам.
+    GRANTED = "granted"
+    HIDDEN = "hidden"
+
+
 class PublicProfileResponse(ProfileData):
-    """Опубликованный профиль глазами работодателя (с учётом приватности)."""
+    """Профиль глазами работодателя (с учётом приватности)."""
 
     user_id: uuid.UUID
+    contact_access: ContactAccess
     published_at: datetime | None
     age: int | None
     phone: str | None
@@ -352,6 +414,7 @@ class PublicProfileResponse(ProfileData):
     salary_from: int | None
     salary_currency: str | None
     has_photo: bool
+    actuality: Actuality
     fsp_achievements: list[FspAchievementResponse]
 
 

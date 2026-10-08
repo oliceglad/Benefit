@@ -24,6 +24,17 @@ class InternalIdentityResponse(IdentityResponse):
     subject: str
 
 
+class InternalUserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: str
+    role: UserRole
+    full_name: str | None
+    is_active: bool
+    is_email_verified: bool
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -6,9 +6,11 @@
 
 from app.db.base import Base
 from app.models.candidate import (
+    CandidateActivity,
     CandidatePhoto,
     CandidateProfile,
     Consent,
+    ContactGrant,
     FspAchievement,
     OutboxEvent,
     ProfileStatus,
@@ -16,9 +18,11 @@ from app.models.candidate import (
 
 __all__ = [
     "Base",
+    "CandidateActivity",
     "CandidatePhoto",
     "CandidateProfile",
     "Consent",
+    "ContactGrant",
     "FspAchievement",
     "OutboxEvent",
     "ProfileStatus",

@@ -57,3 +57,29 @@ async def test_sends_verification_code(client: AsyncClient, sender: FakeSender) 
     body = message.get_body(("plain",))
     assert body is not None
     assert "123456" in body.get_content()
+
+
+async def test_sends_notification_with_escaped_html(
+    client: AsyncClient, sender: FakeSender
+) -> None:
+    response = await client.post(
+        "/api/v1/emails/notification",
+        json={
+            "to": "dev@mail.ru",
+            "subject": "Новое приглашение",
+            "title": "Приглашение от <ООО Ромашка>",
+            "body": "Вакансия: Python-разработчик",
+            "action_url": "http://localhost:3000/invitations/1",
+            "action_label": "Посмотреть",
+        },
+        headers={"X-Internal-Token": settings.internal_api_token},
+    )
+
+    assert response.status_code == 202
+    [message] = sender.sent
+    html_part = message.get_body(("html",)).get_content()
+    assert "&lt;ООО Ромашка&gt;" in html_part
+    assert 'href="http://localhost:3000/invitations/1"' in html_part
+    assert "Посмотреть: http://localhost:3000/invitations/1" in (
+        message.get_body(("plain",)).get_content()
+    )

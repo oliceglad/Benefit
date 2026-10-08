@@ -173,7 +173,7 @@ async def test_employer_pdf_respects_privacy(
 
     from pypdf import PdfReader
 
-    await published_profile(client, candidate, privacy={"show_contacts": False})
+    await published_profile(client, candidate)
 
     response = await client.get(
         f"{API}/{candidate.id}/resume.pdf", headers=employer.headers

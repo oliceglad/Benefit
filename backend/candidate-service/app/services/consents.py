@@ -3,12 +3,12 @@
 import uuid
 from datetime import UTC, datetime
 
+from benefit_common.errors import AppError
 from fastapi import status
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AppError
 from app.models.candidate import Consent
 from app.repositories.candidates import ConsentRepository
 from app.schemas.consent import ConsentGrant, ConsentStatus, ConsentType

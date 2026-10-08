@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from sqlalchemy import DateTime, Enum, String, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,6 +16,14 @@ class UserRole(StrEnum):
 
     CANDIDATE = "candidate"
     EMPLOYER = "employer"
+    # Администратор контента (тесты и т. п.). Не выбирается при регистрации,
+    # выдаётся только командой ``python -m app.cli create-admin``.
+    ADMIN = "admin"
+
+
+# Роли, которые пользователь может выбрать сам.
+SELF_SERVICE_ROLES = (UserRole.CANDIDATE, UserRole.EMPLOYER)
+SelfServiceRole = Literal[UserRole.CANDIDATE, UserRole.EMPLOYER]
 
 
 # Общий тип PostgreSQL для колонок с ролью.

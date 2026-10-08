@@ -27,13 +27,8 @@ class Settings(BaseSettings):
     postgres_user: str = "candidates"
     postgres_password: str = "candidates"
 
-    # Проверка access-токенов auth-service (совместимы с Keycloak).
-    auth_jwks_url: str = "http://localhost:8000/.well-known/jwks.json"
-    auth_issuer: str = "http://localhost:8000"
-    auth_audience: str = "benefit"
-
-    # Межсервисное взаимодействие.
-    internal_api_token: str = "change-me"
+    # Межсервисное взаимодействие (токен и проверку JWT настраивает
+    # benefit_common.settings).
     auth_internal_url: str = "http://localhost:8001"
 
     # API достижений ФСП (пока — mock), доступ по учётным данным клиента.

@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 from app.api.deps import CurrentUser, OAuthServiceDep, ProviderRegistryDep
 from app.core.config import settings
 from app.core.exceptions import AppError
-from app.models.user import UserRole
+from app.models.user import SelfServiceRole
 from app.schemas.auth import (
     AuthorizationUrlResponse,
     OAuthExchangeRequest,
@@ -43,7 +43,7 @@ async def authorize(
     provider: str,
     service: OAuthServiceDep,
     role: Annotated[
-        UserRole | None,
+        SelfServiceRole | None,
         Query(description="Роль для нового аккаунта, если её не передал провайдер"),
     ] = None,
 ) -> RedirectResponse:

@@ -28,11 +28,6 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     cors_origins: list[str] = []
 
-    # Проверка access-токенов auth-service (совместимы с Keycloak).
-    auth_jwks_url: str = "http://localhost:8000/.well-known/jwks.json"
-    auth_issuer: str = "http://localhost:8000"
-    auth_audience: str = "benefit"
-
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_db: str = "benefit"

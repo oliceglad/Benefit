@@ -7,27 +7,28 @@
 Через шлюз не публикуется; защищён межсервисным токеном.
 """
 
-import hmac
 import uuid
-from datetime import UTC, datetime
-from typing import Annotated, Any
+from datetime import datetime
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from pydantic import BaseModel
+from benefit_common.internal import verify_internal_token
+from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.deps import ProfileServiceDep, SessionDep
-from app.core.config import settings
-from app.domain.dictionaries import Grade
-from app.models.candidate import CandidateProfile, OutboxEvent, ProfileStatus
+from app.domain.dictionaries import Grade, Industry, ITRole
+from app.models.candidate import (
+    CandidateActivity,
+    CandidateProfile,
+    ContactGrant,
+    OutboxEvent,
+    ProfileStatus,
+)
+from app.schemas.profile import PublicProfileResponse
 from app.services.events import EventType, record_event
 from app.services.profiles import matching_snapshot
-
-
-def verify_internal_token(x_internal_token: Annotated[str, Header()] = "") -> None:
-    if not hmac.compare_digest(x_internal_token, settings.internal_api_token):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-
 
 router = APIRouter(
     prefix="/internal/v1",
@@ -42,10 +43,41 @@ class CandidateSnapshot(BaseModel):
     data: dict[str, Any]
 
 
-class VerifiedGradeRequest(BaseModel):
-    grade: Grade
-    # Идентификатор попытки тестирования в assessment-service.
-    assessment_id: str | None = None
+class AssessmentResult(BaseModel):
+    """Итог тестирования от assessment-service.
+
+    ``verified_grade`` — лучший действующий подтверждённый грейд кандидата
+    (``None``, если подтверждённых результатов нет). Низкий результат сюда
+    не передаётся: assessment-service присылает только подтверждения.
+    """
+
+    industry: Industry | None = None
+    specialization: ITRole | None = None
+    verified_grade: Grade | None = None
+    verified_at: datetime | None = None
+    attempt_id: uuid.UUID | None = None
+    test_title: str | None = None
+    percent: float | None = None
+
+
+class ContactGrantRequest(BaseModel):
+    employer_id: uuid.UUID
+    source: Literal["invitation", "application"]
+    source_id: uuid.UUID
+
+
+class ActivityRequest(BaseModel):
+    kind: Literal[
+        "task_assigned",
+        "task_submitted",
+        "task_reviewed",
+        "task_expired",
+        "employer_test_completed",
+        "employer_test_expired",
+    ]
+    ref_id: str = Field(max_length=64)
+    occurred_at: datetime
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class EventResponse(BaseModel):
@@ -79,6 +111,21 @@ async def list_candidates(
     return [_snapshot(p) for p in profiles]
 
 
+@router.get(
+    "/candidates/{user_id}/search-document", response_model=PublicProfileResponse
+)
+async def search_document(
+    user_id: uuid.UUID, service: ProfileServiceDep
+) -> PublicProfileResponse:
+    """Данные для поискового индекса (matching-service).
+
+    Это профиль глазами работодателя без доступа к контактам: настройки
+    приватности применены, контактов нет. Неопубликованный профиль — 404
+    (его нужно убрать из индекса).
+    """
+    return await service.public_view(user_id, None)
+
+
 @router.get("/candidates/{user_id}", response_model=CandidateSnapshot)
 async def get_candidate(
     user_id: uuid.UUID, service: ProfileServiceDep
@@ -86,26 +133,120 @@ async def get_candidate(
     return _snapshot(await service.get(user_id))
 
 
-@router.put("/candidates/{user_id}/verified-grade", response_model=CandidateSnapshot)
-async def set_verified_grade(
+@router.put("/candidates/{user_id}/assessment", response_model=CandidateSnapshot)
+async def set_assessment_result(
     user_id: uuid.UUID,
-    data: VerifiedGradeRequest,
+    data: AssessmentResult,
     service: ProfileServiceDep,
     session: SessionDep,
 ) -> CandidateSnapshot:
-    """Грейд, подтверждённый тестированием. Показывается рядом с заявленным."""
+    """Обновляет категорию кандидата по итогам тестирования.
+
+    Идемпотентно: повторная доставка того же результата ничего не меняет.
+    """
     profile = await service.get(user_id)
-    profile.verified_grade = data.grade
-    profile.grade_verified_at = datetime.now(UTC)
+    if data.industry:
+        profile.industry = data.industry
+    profile.verified_grade = data.verified_grade
+    profile.verified_specialization = (
+        data.specialization if data.verified_grade else None
+    )
+    profile.grade_verified_at = data.verified_at if data.verified_grade else None
+    profile.verification = (
+        {
+            "attempt_id": str(data.attempt_id) if data.attempt_id else None,
+            "test_title": data.test_title,
+            "percent": data.percent,
+        }
+        if data.verified_grade
+        else {}
+    )
     record_event(
         session,
         user_id,
         EventType.GRADE_VERIFIED,
-        {"grade": data.grade, "assessment_id": data.assessment_id},
+        {
+            "verified_grade": data.verified_grade,
+            "specialization": data.specialization,
+            "industry": profile.industry,
+            "attempt_id": str(data.attempt_id) if data.attempt_id else None,
+        },
     )
     await session.commit()
     await session.refresh(profile)
     return _snapshot(profile)
+
+
+@router.put(
+    "/candidates/{user_id}/contact-grants",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def grant_contacts(
+    user_id: uuid.UUID,
+    data: ContactGrantRequest,
+    service: ProfileServiceDep,
+    session: SessionDep,
+) -> None:
+    """Открывает работодателю контакты кандидата: кандидат принял его
+    приглашение или откликнулся на вакансию. Идемпотентно."""
+    await service.get(user_id)
+    await session.execute(
+        pg_insert(ContactGrant)
+        .values(
+            id=uuid.uuid4(),
+            candidate_id=user_id,
+            employer_id=data.employer_id,
+            source=data.source,
+            source_id=data.source_id,
+        )
+        .on_conflict_do_update(
+            index_elements=["candidate_id", "employer_id"],
+            set_={"source": data.source, "source_id": data.source_id},
+        )
+    )
+    record_event(
+        session,
+        user_id,
+        EventType.CONTACTS_SHARED,
+        {
+            "employer_id": str(data.employer_id),
+            "source": data.source,
+            "source_id": str(data.source_id),
+        },
+    )
+    await session.commit()
+
+
+@router.put("/candidates/{user_id}/activities", status_code=status.HTTP_204_NO_CONTENT)
+async def record_activity(
+    user_id: uuid.UUID,
+    data: ActivityRequest,
+    service: ProfileServiceDep,
+    session: SessionDep,
+) -> None:
+    """Активность по заданиям работодателей (из chat-service). Влияет на
+    актуальность профиля. Идемпотентно по (kind, ref_id)."""
+    await service.get(user_id)
+    result = await session.execute(
+        pg_insert(CandidateActivity)
+        .values(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            kind=data.kind,
+            ref_id=data.ref_id,
+            occurred_at=data.occurred_at,
+            data=data.data,
+        )
+        .on_conflict_do_nothing(index_elements=["user_id", "kind", "ref_id"])
+    )
+    if result.rowcount:
+        record_event(
+            session,
+            user_id,
+            EventType.ACTIVITY_RECORDED,
+            {"kind": data.kind, "ref_id": data.ref_id, "data": data.data},
+        )
+    await session.commit()
 
 
 @router.get("/events", response_model=list[EventResponse])

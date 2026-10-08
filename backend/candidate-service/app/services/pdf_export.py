@@ -11,6 +11,7 @@ from app.domain.dictionaries import (
     EDUCATION_LEVEL_TITLES,
     EMPLOYMENT_TYPE_TITLES,
     GRADE_TITLES,
+    INDUSTRY_TITLES,
     LANGUAGE_LEVEL_TITLES,
     LINK_TYPE_TITLES,
     ROLE_TITLES,
@@ -119,6 +120,8 @@ def build_context(
         meta.append("готов к переезду")
     if profile.roles:
         meta.append(", ".join(ROLE_TITLES[r] for r in profile.roles))
+    if profile.industry:
+        meta.append(INDUSTRY_TITLES[profile.industry])
 
     contacts = [
         c for c in (profile.phone, profile.contact_email, profile.telegram) if c
@@ -193,10 +196,10 @@ def build_context(
     return {
         "full_name": full_name,
         "headline": profile.headline,
-        "grade": GRADE_TITLES[profile.grade] if profile.grade else None,
-        "verified_grade": (
-            GRADE_TITLES[profile.verified_grade] if profile.verified_grade else None
+        "grade": (
+            GRADE_TITLES[profile.category.grade] if profile.category.grade else None
         ),
+        "grade_confirmed": profile.category.grade_status == "confirmed",
         "meta": meta,
         "contacts": contacts,
         "preferences": preferences,

@@ -1,3 +1,4 @@
+# Контекст сборки — папка backend (см. docker-compose.yml).
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,11 +14,14 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-COPY app/__init__.py ./app/__init__.py
+COPY libs/benefit-common /opt/libs/benefit-common
+RUN pip install /opt/libs/benefit-common
+
+COPY candidate-service/pyproject.toml ./
+COPY candidate-service/app/__init__.py ./app/__init__.py
 RUN pip install .
 
-COPY . .
+COPY candidate-service/ .
 RUN chmod +x scripts/entrypoint.sh \
     && useradd --create-home --uid 1000 appuser
 USER appuser

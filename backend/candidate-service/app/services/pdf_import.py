@@ -14,12 +14,12 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Protocol
 
+from benefit_common.errors import AppError
 from fastapi import status
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
 from app.core.config import settings
-from app.core.exceptions import AppError
 from app.domain.dictionaries import (
     SOFT_SKILLS,
     Grade,

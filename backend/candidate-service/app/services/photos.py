@@ -2,11 +2,11 @@
 
 import io
 
+from benefit_common.errors import AppError
 from fastapi import status
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.core.config import settings
-from app.core.exceptions import AppError
 
 ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
 # Защита от «пиксельных бомб»: картинка небольшого размера в байтах,

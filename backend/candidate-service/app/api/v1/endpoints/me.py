@@ -6,6 +6,7 @@
 import logging
 from typing import Annotated
 
+from benefit_common.errors import AppError
 from fastapi import APIRouter, Query, Request, Response, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 
@@ -19,7 +20,6 @@ from app.api.deps import (
 )
 from app.api.responses import pdf_response
 from app.core.config import settings
-from app.core.exceptions import AppError
 from app.models.candidate import CandidatePhoto
 from app.schemas.consent import ConsentGrant, ConsentStatus, ConsentType
 from app.schemas.profile import ProfileResponse, ProfileUpdate, ResumeImportResponse

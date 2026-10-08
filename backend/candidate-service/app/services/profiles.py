@@ -1,20 +1,26 @@
 """Профиль кандидата: создание, редактирование, публикация, представления."""
 
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from benefit_common.errors import AppError
+from benefit_common.security import Principal
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import AppError
-from app.core.security import Principal
+from app.domain.dictionaries import GRADE_ORDER, Grade
 from app.models.candidate import CandidateProfile, ProfileStatus
 from app.repositories.candidates import ProfileRepository
 from app.schemas.profile import (
+    Actuality,
+    ActualityStatus,
+    Category,
     Completeness,
+    ContactAccess,
     FspAchievementResponse,
     FspInfo,
+    GradeStatus,
     PrivacySettings,
     ProfileResponse,
     ProfileUpdate,
@@ -42,6 +48,11 @@ JSON_FIELDS = {
 }
 
 HIDDEN_COMPANY = "Компания скрыта"
+
+# Актуальность профиля: «активен» — активность за 30 дней, «недавно» — за 90.
+ACTIVE_DAYS = 30
+RECENT_DAYS = 90
+ACTIVITY_WINDOW_DAYS = 180
 
 
 def _profile_not_found() -> AppError:
@@ -74,6 +85,28 @@ def total_experience_months(experience: list[dict[str, Any]], today: date) -> in
     return total
 
 
+def category_of(profile: CandidateProfile) -> Category:
+    claimed = Grade(profile.grade) if profile.grade else None
+    verified = Grade(profile.verified_grade) if profile.verified_grade else None
+    if verified and (claimed is None or GRADE_ORDER[verified] >= GRADE_ORDER[claimed]):
+        details = profile.verification or {}
+        return Category(
+            industry=profile.industry,
+            specialization=profile.verified_specialization,
+            grade=verified,
+            grade_status=GradeStatus.CONFIRMED,
+            verified_at=profile.grade_verified_at,
+            test_title=details.get("test_title"),
+            percent=details.get("percent"),
+        )
+    return Category(
+        industry=profile.industry,
+        specialization=profile.roles[0] if profile.roles else None,
+        grade=claimed,
+        grade_status=GradeStatus.NOT_CONFIRMED,
+    )
+
+
 def privacy_of(profile: CandidateProfile) -> PrivacySettings:
     return PrivacySettings.model_validate(profile.privacy or {})
 
@@ -85,6 +118,8 @@ def matching_snapshot(profile: CandidateProfile) -> dict[str, Any]:
         "headline": profile.headline,
         "grade": profile.grade,
         "verified_grade": profile.verified_grade,
+        "industry": profile.industry,
+        "category": category_of(profile).model_dump(mode="json"),
         "roles": profile.roles,
         "skills": profile.skills,
         "soft_skills": profile.soft_skills,
@@ -127,6 +162,31 @@ class ProfileService:
         self.session.add(profile)
         await self.session.commit()
         return await self._reload(profile)
+
+    async def actuality(self, profile: CandidateProfile) -> Actuality:
+        current = datetime.now(UTC)
+        counts, last_task = await self.profiles.activity_stats(
+            profile.user_id, current - timedelta(days=ACTIVITY_WINDOW_DAYS)
+        )
+        moments = [profile.updated_at, profile.grade_verified_at, last_task]
+        last_active = max(m for m in moments if m is not None)
+        age = current - last_active
+        if age <= timedelta(days=ACTIVE_DAYS):
+            status = ActualityStatus.ACTIVE
+        elif age <= timedelta(days=RECENT_DAYS):
+            status = ActualityStatus.RECENT
+        else:
+            status = ActualityStatus.STALE
+        return Actuality(
+            status=status,
+            last_active_at=last_active,
+            tasks_assigned=counts.get("task_assigned", 0),
+            tasks_submitted=counts.get("task_submitted", 0),
+            tasks_passed=counts.get("task_reviewed:passed", 0),
+            tasks_failed=counts.get("task_reviewed:failed", 0),
+            tasks_expired=counts.get("task_expired", 0),
+            employer_tests_completed=counts.get("employer_test_completed", 0),
+        )
 
     async def _reload(self, profile: CandidateProfile) -> CandidateProfile:
         """Перечитывает поля, вычисленные БД (``updated_at`` и т. п.)."""
@@ -222,6 +282,9 @@ class ProfileService:
                 "user_id": profile.user_id,
                 "status": profile.status,
                 "published_at": profile.published_at,
+                "verified_grade": profile.verified_grade,
+                "verified_specialization": profile.verified_specialization,
+                "grade_verified_at": profile.grade_verified_at,
                 "birth_date": profile.birth_date,
                 "age": age_on(profile.birth_date, today)
                 if profile.birth_date
@@ -233,6 +296,7 @@ class ProfileService:
                 "salary_currency": profile.salary_currency,
                 "privacy": privacy_of(profile),
                 "has_photo": await self.profiles.has_photo(profile.user_id),
+                "actuality": await self.actuality(profile),
                 "fsp": FspInfo(
                     linked=profile.fsp_participant_id is not None,
                     participant_id=profile.fsp_participant_id,
@@ -247,13 +311,28 @@ class ProfileService:
             }
         )
 
-    async def public_view(self, user_id: uuid.UUID) -> PublicProfileResponse:
-        """Профиль для работодателя: только опубликованный и с учётом
-        настроек приватности."""
+    async def public_view(
+        self, user_id: uuid.UUID, employer_id: uuid.UUID | None
+    ) -> PublicProfileResponse:
+        """Профиль для работодателя с учётом настроек приватности.
+
+        Опубликованный профиль видят все работодатели. Работодатель, чьё
+        приглашение кандидат принял, видит профиль и контакты всегда
+        (пока профиль не удалён).
+        """
         profile = await self.profiles.get(user_id)
-        if profile is None or profile.status != ProfileStatus.PUBLISHED:
+        granted = (
+            profile is not None
+            and employer_id is not None
+            and await self.profiles.has_contact_grant(user_id, employer_id)
+        )
+        if profile is None or (
+            profile.status != ProfileStatus.PUBLISHED and not granted
+        ):
             raise _profile_not_found()
         privacy = privacy_of(profile)
+        contact_access = ContactAccess.GRANTED if granted else ContactAccess.HIDDEN
+        show_contacts = granted
         today = date.today()
         common = self._common(profile, today)
         if privacy.hide_current_company:
@@ -275,17 +354,17 @@ class ProfileService:
                 "user_id": profile.user_id,
                 "published_at": profile.published_at,
                 "age": age_on(profile.birth_date, today) if show_age else None,
-                "phone": profile.phone if privacy.show_contacts else None,
-                "contact_email": (
-                    profile.contact_email if privacy.show_contacts else None
-                ),
-                "telegram": profile.telegram if privacy.show_contacts else None,
+                "contact_access": contact_access,
+                "phone": profile.phone if show_contacts else None,
+                "contact_email": profile.contact_email if show_contacts else None,
+                "telegram": profile.telegram if show_contacts else None,
                 "salary_from": profile.salary_from if privacy.show_salary else None,
                 "salary_currency": (
                     profile.salary_currency if privacy.show_salary else None
                 ),
                 "has_photo": privacy.show_photo
                 and await self.profiles.has_photo(user_id),
+                "actuality": await self.actuality(profile),
                 "fsp_achievements": [
                     FspAchievementResponse.model_validate(a) for a in achievements
                 ],
@@ -308,8 +387,8 @@ class ProfileService:
             "headline": profile.headline,
             "about": profile.about,
             "grade": profile.grade,
-            "verified_grade": profile.verified_grade,
-            "grade_verified_at": profile.grade_verified_at,
+            "industry": profile.industry,
+            "category": category_of(profile),
             "roles": profile.roles,
             "skills": profile.skills,
             "soft_skills": profile.soft_skills,

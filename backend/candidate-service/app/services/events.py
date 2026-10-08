@@ -15,6 +15,8 @@ class EventType:
     PROFILE_DELETED = "candidate.profile.deleted"
     GRADE_VERIFIED = "candidate.grade.verified"
     FSP_ACHIEVEMENTS_SYNCED = "candidate.fsp_achievements.synced"
+    CONTACTS_SHARED = "candidate.contacts.shared"
+    ACTIVITY_RECORDED = "candidate.activity.recorded"
 
 
 def record_event(

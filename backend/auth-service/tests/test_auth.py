@@ -246,3 +246,37 @@ async def test_jwks_verifies_issued_tokens(
         audience="benefit",
     )
     assert claims["realm_access"]["roles"] == ["candidate"]
+
+
+async def test_admin_role_cannot_be_self_assigned(client: AsyncClient) -> None:
+    response = await client.post(
+        f"{API}/auth/register",
+        json={"email": "boss@mail.ru", "password": PASSWORD, "role": "admin"},
+    )
+    assert response.status_code == 422
+
+
+async def test_admin_token_has_admin_role(client: AsyncClient) -> None:
+    from datetime import UTC, datetime
+
+    from app.core.security import hash_password
+    from app.db.session import async_session_factory
+    from app.models.user import User, UserRole
+
+    async with async_session_factory() as session:
+        session.add(
+            User(
+                email="admin@benefit.ru",
+                password_hash=hash_password(PASSWORD),
+                role=UserRole.ADMIN,
+                email_verified_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+    response = await client.post(
+        f"{API}/auth/login", json={"email": "admin@benefit.ru", "password": PASSWORD}
+    )
+
+    claims = decode_access_token(response.json()["access_token"])
+    assert claims["realm_access"]["roles"] == ["admin"]

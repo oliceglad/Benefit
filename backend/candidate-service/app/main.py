@@ -3,12 +3,12 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from benefit_common.errors import register_exception_handlers
 from fastapi import FastAPI
 
 from app.api.internal.router import router as internal_router
 from app.api.v1.router import api_router
 from app.core.config import settings
-from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.db.session import engine
 

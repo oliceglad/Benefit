@@ -8,29 +8,24 @@
 import os
 import uuid
 from collections.abc import AsyncIterator, Iterator
-from datetime import UTC, datetime, timedelta
 from typing import Any
 
 os.environ["APP_ENV"] = "test"
 os.environ["POSTGRES_DB"] = os.environ.get("POSTGRES_DB", "candidates") + "_test"
 
 import asyncpg  # noqa: E402
-import jwt  # noqa: E402
 import pytest  # noqa: E402
-from cryptography.hazmat.primitives.asymmetric import rsa  # noqa: E402
+from benefit_common.testing import TestUser, install_test_jwks  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
-from jwt.algorithms import RSAAlgorithm  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
-from app.core.security import jwks_cache  # noqa: E402
 from app.db.session import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Base  # noqa: E402
 from app.services.fsp import get_achievements_client, get_identity_client  # noqa: E402
 
-KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-KID = "test-key"
+User = TestUser
 
 
 async def _ensure_database() -> None:
@@ -72,33 +67,8 @@ async def clean_tables() -> AsyncIterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def fake_jwks(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def load() -> None:
-        jwk = RSAAlgorithm.to_jwk(KEY.public_key(), as_dict=True)
-        jwks_cache._keys = {KID: jwt.PyJWK({**jwk, "kid": KID, "alg": "RS256"})}
-        jwks_cache._loaded_at = float("inf")
-
-    monkeypatch.setattr(jwks_cache, "_load", load)
-
-
-def make_token(user_id: uuid.UUID, role: str, email: str = "user@mail.ru") -> str:
-    now = datetime.now(UTC)
-    claims = {
-        "iss": settings.auth_issuer,
-        "aud": settings.auth_audience,
-        "sub": str(user_id),
-        "iat": now,
-        "exp": now + timedelta(minutes=5),
-        "email": email,
-        "realm_access": {"roles": [role]},
-    }
-    return jwt.encode(claims, KEY, algorithm="RS256", headers={"kid": KID})
-
-
-class User:
-    def __init__(self, role: str, email: str = "user@mail.ru") -> None:
-        self.id = uuid.uuid4()
-        self.headers = {"Authorization": f"Bearer {make_token(self.id, role, email)}"}
+def jwks() -> None:
+    install_test_jwks()
 
 
 @pytest.fixture

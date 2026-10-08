@@ -9,9 +9,10 @@ from fastapi import APIRouter, Depends, Header
 
 from app.api.deps import SessionDep
 from app.core.config import settings
-from app.core.exceptions import UnauthorizedError
+from app.core.exceptions import AppError, UnauthorizedError
+from app.models.user import User
 from app.repositories.users import ExternalIdentityRepository
-from app.schemas.user import InternalIdentityResponse
+from app.schemas.user import InternalIdentityResponse, InternalUserResponse
 
 
 def verify_internal_token(x_internal_token: Annotated[str, Header()] = "") -> None:
@@ -24,6 +25,15 @@ router = APIRouter(
     tags=["internal"],
     dependencies=[Depends(verify_internal_token)],
 )
+
+
+@router.get("/users/{user_id}", response_model=InternalUserResponse)
+async def get_user(user_id: uuid.UUID, session: SessionDep) -> InternalUserResponse:
+    """Данные аккаунта для других сервисов (например, адрес для уведомлений)."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise AppError("Пользователь не найден", code="user_not_found", status_code=404)
+    return InternalUserResponse.model_validate(user)
 
 
 @router.get(

@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.core.config import settings
-from app.models.user import UserRole
+from app.models.user import SelfServiceRole
 
 
 def _normalize_email(value: str) -> str:
@@ -20,7 +20,7 @@ class EmailRequest(BaseModel):
 
 class RegisterRequest(EmailRequest):
     password: str = Field(min_length=settings.password_min_length, max_length=128)
-    role: UserRole
+    role: SelfServiceRole
     full_name: str | None = Field(default=None, max_length=255)
 
     @field_validator("password")

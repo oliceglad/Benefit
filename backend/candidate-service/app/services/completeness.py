@@ -36,6 +36,7 @@ CHECKS = [
     _Check("grade", "specialization", required=True),
     _Check("roles", "specialization", required=True),
     _Check("about", "specialization", required=False),
+    _Check("industry", "specialization", required=False),
     _Check("skills", "skills", required=True),
     _Check("soft_skills", "skills", required=False),
     _Check("languages", "skills", required=False),

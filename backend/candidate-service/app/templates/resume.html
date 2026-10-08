@@ -40,8 +40,8 @@
     <h1>{{ full_name or "Кандидат" }}</h1>
     {% if headline %}<p class="headline">{{ headline }}</p>{% endif %}
     <p class="meta">
-      {% if grade %}<span class="grade">{{ grade }}</span>{% endif %}
-      {% if verified_grade %}<span class="grade verified">Подтверждённый грейд: {{ verified_grade }}</span>{% endif %}
+      {% if grade %}<span class="grade{% if grade_confirmed %} verified{% endif %}">{{ grade }}</span>
+      <span class="muted">{% if grade_confirmed %}грейд подтверждён тестированием{% else %}грейд не подтверждён{% endif %}</span>{% endif %}
     </p>
     {% if meta %}<p class="meta">{{ meta | join(" · ") }}</p>{% endif %}
   </div>

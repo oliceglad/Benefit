@@ -15,7 +15,7 @@ from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.core.security import generate_token, hash_token
 from app.models.external_identity import ExternalIdentity
 from app.models.tokens import OAuthLoginCode, OAuthState
-from app.models.user import User, UserRole
+from app.models.user import SELF_SERVICE_ROLES, User, UserRole
 from app.repositories.users import ExternalIdentityRepository, UserRepository
 from app.schemas.auth import TokenResponse
 from app.services.oidc import OIDCProvider, ProviderRegistry
@@ -32,7 +32,8 @@ def redirect_uri_for(provider_id: str) -> str:
 def role_from_claims(claims: dict[str, Any]) -> UserRole | None:
     """Роль из realm-ролей Keycloak (claim ``realm_access.roles``)."""
     roles = (claims.get("realm_access") or {}).get("roles") or []
-    for role in UserRole:
+    # Роль администратора от внешнего провайдера не принимается.
+    for role in SELF_SERVICE_ROLES:
         if role.value in roles:
             return role
     return None
