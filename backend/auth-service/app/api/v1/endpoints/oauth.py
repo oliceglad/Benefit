@@ -4,10 +4,11 @@ import logging
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.api.deps import CurrentUser, OAuthServiceDep, ProviderRegistryDep
+from app.core import cookies
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.models.user import SelfServiceRole
@@ -92,10 +93,15 @@ async def callback(
 
 @router.post("/oauth/exchange", response_model=TokenResponse)
 async def exchange(
-    data: OAuthExchangeRequest, service: OAuthServiceDep
+    data: OAuthExchangeRequest,
+    service: OAuthServiceDep,
+    request: Request,
+    response: Response,
 ) -> TokenResponse:
-    """Обмен одноразового кода входа на пару токенов."""
-    return await service.exchange(data.code)
+    """Обмен одноразового кода входа на пару токенов
+    (``X-Auth-Mode: cookie`` — в cookie)."""
+    tokens = await service.exchange(data.code)
+    return cookies.deliver(tokens, request, response)
 
 
 @router.get("/oauth-dev-callback", response_model=None, include_in_schema=False)

@@ -1,16 +1,9 @@
-"""Настройка логирования приложения."""
+"""Логирование: в каждой записи — имя сервиса и сквозной ID запроса."""
 
-import logging
-import sys
+from benefit_common.observability import configure_logging
 
-LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+SERVICE_NAME = "matching-service"
 
 
 def setup_logging(level: str = "INFO") -> None:
-    """Настраивает корневой логгер с выводом в stdout."""
-    logging.basicConfig(
-        level=level.upper(),
-        format=LOG_FORMAT,
-        stream=sys.stdout,
-        force=True,
-    )
+    configure_logging(level, SERVICE_NAME)

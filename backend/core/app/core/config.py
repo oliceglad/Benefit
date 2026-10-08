@@ -28,6 +28,20 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     cors_origins: list[str] = []
 
+    # Сервисы для страницы состояния: имя -> адрес health-эндпоинта
+    # во внутренней сети.
+    status_services: dict[str, str] = {
+        "auth-service": "http://auth-service:8000/api/v1/health",
+        "candidate-service": "http://candidate-service:8000/api/v1/candidates/health",
+        "assessment-service": "http://assessment-service:8000/api/v1/assessments/health",
+        "applications-service": "http://applications-service:8000/api/v1/invitations/health",
+        "notification-service": "http://notification-service:8000/api/v1/notifications/health",
+        "chat-service": "http://chat-service:8000/api/v1/chat/health",
+        "employer-service": "http://employer-service:8000/api/v1/employers/health",
+        "matching-service": "http://matching-service:8000/api/v1/talent/health",
+        "mail-service": "http://mail-service:8000/api/v1/health",
+    }
+
     postgres_host: str = "localhost"
     postgres_port: int = 5432
     postgres_db: str = "benefit"

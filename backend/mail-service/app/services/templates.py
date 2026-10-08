@@ -15,6 +15,10 @@ from app.core.config import settings
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 
+def _header(value: str) -> str:
+    return " ".join(value.split())[:250]
+
+
 def render(
     name: str,
     *,
@@ -29,8 +33,10 @@ def render(
 
     message = EmailMessage()
     message["From"] = settings.mail_from
-    message["To"] = to
-    message["Subject"] = subject
+    message["To"] = _header(to)
+    # Тема может содержать текст пользователей (название вакансии):
+    # переводы строк в заголовке недопустимы.
+    message["Subject"] = _header(subject)
     message.set_content(text.substitute(params))
     message.add_alternative(
         markup.substitute(

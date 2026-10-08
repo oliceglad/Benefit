@@ -1,3 +1,4 @@
+# Контекст сборки — папка backend (см. docker-compose.yml).
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -7,11 +8,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-COPY app/__init__.py ./app/__init__.py
+COPY libs/benefit-common /opt/libs/benefit-common
+RUN pip install /opt/libs/benefit-common
+
+COPY auth-service/pyproject.toml ./
+COPY auth-service/app/__init__.py ./app/__init__.py
 RUN pip install .
 
-COPY . .
+COPY auth-service/ .
 # keys/ — каталог для RSA-ключа подписи JWT (монтируется volume).
 RUN chmod +x scripts/entrypoint.sh \
     && useradd --create-home --uid 1000 appuser \

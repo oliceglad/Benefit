@@ -11,6 +11,11 @@ from typing import Annotated, Any
 import httpx
 from fastapi import Header, HTTPException, status
 
+from benefit_common.context import (
+    REQUEST_ID_HEADER,
+    current_request_id,
+    service_title,
+)
 from benefit_common.errors import AppError, ServiceUnavailableError
 from benefit_common.settings import get_common_settings
 
@@ -36,8 +41,17 @@ class InternalClient:
 
     def __init__(self, base_url: str, *, service: str, timeout: float = 10.0) -> None:
         self.base_url = base_url.rstrip("/")
-        self.service = service
+        # Короткое имя («candidate») или полное («candidate-service»).
+        self.service = service if service.endswith("-service") else f"{service}-service"
         self.timeout = timeout
+
+    def _unavailable(self, reason: str) -> ServiceUnavailableError:
+        return ServiceUnavailableError(
+            f"{service_title(self.service).capitalize()} {reason}. "
+            "Попробуйте повторить запрос позже",
+            code="upstream_unavailable",
+            service=self.service,
+        )
 
     async def request(
         self,
@@ -48,6 +62,10 @@ class InternalClient:
         params: dict[str, Any] | None = None,
     ) -> httpx.Response:
         headers = {INTERNAL_TOKEN_HEADER: get_common_settings().internal_api_token}
+        request_id = current_request_id()
+        if request_id:
+            # Сквозной ID: запрос виден в логах всех сервисов цепочки.
+            headers[REQUEST_ID_HEADER] = request_id
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.request(
@@ -57,18 +75,17 @@ class InternalClient:
                     params=params,
                     headers=headers,
                 )
+        except httpx.TimeoutException as exc:
+            logger.warning("%s %s%s timed out", method, self.service, path)
+            raise self._unavailable("не ответил вовремя") from exc
         except httpx.HTTPError as exc:
             logger.warning("%s %s%s failed: %s", method, self.service, path, exc)
-            raise ServiceUnavailableError(
-                f"Сервис {self.service} недоступен", code=f"{self.service}_unavailable"
-            ) from exc
+            raise self._unavailable("недоступен") from exc
         if response.status_code >= 500:
             logger.warning(
                 "%s %s%s returned %s", method, self.service, path, response.status_code
             )
-            raise ServiceUnavailableError(
-                f"Сервис {self.service} недоступен", code=f"{self.service}_unavailable"
-            )
+            raise self._unavailable("вернул внутреннюю ошибку")
         return response
 
     async def get(self, path: str, **kwargs: Any) -> httpx.Response:
@@ -93,4 +110,6 @@ def raise_for_client_error(response: httpx.Response) -> None:
         error.get("message") or "Ошибка во внешнем сервисе",
         code=error.get("code") or "upstream_error",
         status_code=response.status_code,
+        service=error.get("service"),
+        details=error.get("details"),
     )

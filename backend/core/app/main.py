@@ -3,12 +3,13 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from benefit_common.observability import setup_app
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
-from app.core.logging import setup_logging
+from app.core.logging import SERVICE_NAME, setup_logging
 from app.db.session import engine
 
 
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    setup_app(app, SERVICE_NAME)
     if settings.cors_origins:
         app.add_middleware(
             CORSMiddleware,

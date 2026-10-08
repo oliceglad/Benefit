@@ -45,6 +45,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     full_name: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True, server_default=true())
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Защита от подбора пароля к конкретному аккаунту.
+    failed_login_attempts: Mapped[int] = mapped_column(default=0, server_default="0")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     identities: Mapped[list["ExternalIdentity"]] = relationship(  # noqa: F821
         back_populates="user",

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.dictionaries import GRADE_ORDER, Grade
 from app.models.candidate import CandidateProfile, ProfileStatus
 from app.repositories.candidates import ProfileRepository
+from app.schemas.consent import ConsentType
 from app.schemas.profile import (
     Actuality,
     ActualityStatus,
@@ -329,6 +330,10 @@ class ProfileService:
         if profile is None or (
             profile.status != ProfileStatus.PUBLISHED and not granted
         ):
+            raise _profile_not_found()
+        # Отозвано согласие на обработку персональных данных — профиль
+        # не показывается никому, даже работодателю с открытым доступом.
+        if not await self.consents.has(user_id, ConsentType.PERSONAL_DATA):
             raise _profile_not_found()
         privacy = privacy_of(profile)
         contact_access = ContactAccess.GRANTED if granted else ContactAccess.HIDDEN

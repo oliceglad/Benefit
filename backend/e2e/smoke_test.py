@@ -609,6 +609,46 @@ class Smoke:
         assert mine[0]["status"] == "invited"
         self.ok("вакансия опубликована, кандидат откликнулся, работодатель пригласил")
 
+        self.step("Токены в cookie (auth → все сервисы, CSRF, WebSocket)")
+        preflight = self.http.options(
+            "/api/v1/candidates/me",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "PATCH",
+            },
+        )
+        assert preflight.status_code == 204
+        assert preflight.headers["access-control-allow-credentials"] == "true"
+        browser = httpx.Client(base_url=self.gateway, timeout=30)
+        login = self.check(
+            browser.post(
+                "/api/v1/auth/login",
+                json={"email": candidate_email, "password": "secret123"},
+                headers={"X-Auth-Mode": "cookie"},
+            )
+        )
+        assert login["access_token"] is None and login["delivery"] == "cookie"
+        csrf = {"X-CSRF-Token": login["csrf_token"]}
+        assert (
+            self.check(browser.get("/api/v1/candidates/me"))["user_id"] == candidate_id
+        )
+        patch = {"about": "Обновлено по cookie"}
+        assert browser.patch("/api/v1/candidates/me", json=patch).status_code == 403
+        self.check(browser.patch("/api/v1/candidates/me", json=patch, headers=csrf))
+        with connect_ws(
+            ws_url, browser, headers={"Origin": "http://localhost:8000"}
+        ) as ws:
+            assert ws.receive_json(timeout=10)["type"] == "ready"
+        refreshed = self.check(browser.post("/api/v1/auth/refresh", headers=csrf))
+        assert refreshed["delivery"] == "cookie"
+        browser.post(
+            "/api/v1/auth/logout", headers={"X-CSRF-Token": refreshed["csrf_token"]}
+        )
+        assert browser.get("/api/v1/candidates/me").status_code == 401
+        self.ok(
+            "вход в cookie-режиме: HttpOnly-токены, CSRF, WebSocket, refresh, выход"
+        )
+
         self.step("Ограничения доступа")
         stranger, _ = self.register("candidate", "-stranger")
         checks = {

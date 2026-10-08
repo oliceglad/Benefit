@@ -280,3 +280,48 @@ async def test_admin_token_has_admin_role(client: AsyncClient) -> None:
 
     claims = decode_access_token(response.json()["access_token"])
     assert claims["realm_access"]["roles"] == ["admin"]
+
+
+async def test_pending_registration_cannot_be_hijacked(
+    client: AsyncClient, mail: FakeMailClient
+) -> None:
+    await register(client, "victim@mail.ru")
+    victim_code = mail.codes["victim@mail.ru"]
+
+    attack = await client.post(
+        f"{API}/auth/register",
+        json={"email": "victim@mail.ru", "password": "attacker1", "role": "candidate"},
+    )
+
+    assert attack.status_code == 409
+    assert attack.json()["error"]["code"] == "registration_pending"
+    assert mail.codes["victim@mail.ru"] == victim_code  # код не перевыпущен
+    await client.post(
+        f"{API}/auth/verify-email",
+        json={"email": "victim@mail.ru", "code": victim_code},
+    )
+    hijack = await client.post(
+        f"{API}/auth/login", json={"email": "victim@mail.ru", "password": "attacker1"}
+    )
+    assert hijack.status_code == 401
+
+
+async def test_account_locks_after_failed_logins(
+    client: AsyncClient, mail: FakeMailClient
+) -> None:
+    from app.core.config import settings
+
+    await register_and_verify(client, mail, "user@mail.ru")
+    for _ in range(settings.login_max_failures):
+        response = await client.post(
+            f"{API}/auth/login", json={"email": "user@mail.ru", "password": "wrong123"}
+        )
+        assert response.status_code == 401
+
+    # Даже верный пароль не принимается, пока аккаунт заблокирован.
+    locked = await client.post(
+        f"{API}/auth/login", json={"email": "user@mail.ru", "password": PASSWORD}
+    )
+    assert locked.status_code == 429
+    assert locked.json()["error"]["code"] == "account_locked"
+    assert "Retry-After" in locked.headers

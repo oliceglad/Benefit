@@ -84,6 +84,32 @@ WebSocket `/api/v1/chat/ws`) → chat-service, `/api/v1/employers/*` и
 python backend/e2e/smoke_test.py   # нужны пакеты httpx и httpx-ws
 ```
 
+## Ошибки и диагностика
+
+Все сервисы и шлюз отвечают ошибками в одном формате:
+
+```json
+{"error": {
+  "code": "upstream_unavailable",
+  "message": "Сервис профилей кандидатов недоступен. Попробуйте повторить запрос позже",
+  "service": "candidate-service",
+  "request_id": "662215a2d79ee7a33c22bb941454abc4",
+  "details": [{"field": "email", "message": "некорректный адрес почты"}]
+}}
+```
+
+* `service` — где ошибка **произошла**: если сервис не дождался соседа,
+  указан сосед; если сервис не запущен — ответ шлюза с его названием.
+* `request_id` (и заголовок `X-Request-ID`) — сквозной ID: шлюз присваивает
+  его запросу, он передаётся во все межсервисные вызовы и пишется в логи
+  каждого сервиса. Найти всю цепочку:
+  `docker compose logs | grep <request_id>`.
+* Ошибки валидации — по полям, на русском (`details`); непредвиденные —
+  без деталей реализации (стектрейс только в логе).
+* `GET /api/v1/status` — состояние всех сервисов и время их ответа.
+
+Результаты аудита безопасности — в [backend/SECURITY.md](backend/SECURITY.md).
+
 ## Связь сервисов
 
 ```
@@ -122,6 +148,32 @@ async def create_vacancy(
     user: Annotated[Principal, Depends(require_roles(Role.EMPLOYER))],
 ): ...
 ```
+
+### Токены в cookie (для браузера)
+
+Вход, подтверждение почты, обмен OAuth-кода и обновление токенов
+поддерживают два режима:
+
+* по умолчанию токены возвращаются в теле ответа (Swagger, мобильные клиенты,
+  межсервисные вызовы) и передаются в заголовке `Authorization: Bearer`;
+* с заголовком **`X-Auth-Mode: cookie`** токены выставляются в cookie и в теле
+  не возвращаются (скрипт на странице их не прочитает):
+
+| Cookie | Атрибуты | Назначение |
+|---|---|---|
+| `benefit_access` | HttpOnly, SameSite=Strict, `Path=/` | access-токен — принимают все сервисы |
+| `benefit_refresh` | HttpOnly, SameSite=Strict, `Path=/api/v1/auth` | refresh-токен — уходит только в auth-service |
+| `benefit_csrf` | SameSite=Strict, читается JS | значение для заголовка `X-CSRF-Token` |
+
+Изменяющие запросы (POST/PUT/PATCH/DELETE), авторизованные cookie, должны
+содержать заголовок `X-CSRF-Token` со значением cookie `benefit_csrf`
+(double-submit CSRF); без него — `403`. `POST /api/v1/auth/refresh` и
+`/logout` без тела берут refresh-токен из cookie; logout удаляет cookie.
+WebSocket чата авторизуется по cookie автоматически, если Origin в
+`TRUSTED_ORIGINS`. В production обязателен `COOKIE_SECURE=true` (HTTPS).
+
+Фронтенд лучше отдавать через тот же шлюз (один origin). Для разработки на
+`localhost:3000` шлюз отвечает на CORS с `credentials`.
 
 ### Способы входа
 

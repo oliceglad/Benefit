@@ -3,11 +3,12 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from benefit_common.observability import setup_app
 from fastapi import FastAPI
 
 from app.api.routes import health_router, router
 from app.core.config import settings
-from app.core.logging import setup_logging
+from app.core.logging import SERVICE_NAME, setup_logging
 
 
 @asynccontextmanager
@@ -18,6 +19,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    setup_app(app, SERVICE_NAME)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(router, prefix="/api/v1")
     return app

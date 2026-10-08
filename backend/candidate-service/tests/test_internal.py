@@ -272,3 +272,19 @@ async def test_search_document_is_privacy_safe(
     assert document["category"]["grade"] == "middle"
     await client.post("/api/v1/candidates/me/unpublish", headers=candidate.headers)
     assert (await client.get(url, headers=HEADERS)).status_code == 404
+
+
+async def test_revoked_personal_data_consent_hides_profile(
+    client: AsyncClient, candidate: User, employer: User
+) -> None:
+    await published_profile(client, candidate)
+    await grant(client, candidate, employer)
+
+    await client.delete(
+        "/api/v1/candidates/me/consents/personal_data", headers=candidate.headers
+    )
+
+    response = await client.get(
+        f"/api/v1/candidates/{candidate.id}", headers=employer.headers
+    )
+    assert response.status_code == 404

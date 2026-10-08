@@ -32,6 +32,9 @@ from app.domain.dictionaries import (
 logger = logging.getLogger(__name__)
 
 MAX_PAGES = 15
+# Резюме — несколько страниц текста; больший объём режем (защита от DoS:
+# регулярные выражения парсера не должны работать по мегабайтам текста).
+MAX_TEXT_CHARS = 60_000
 
 
 @dataclass
@@ -65,6 +68,7 @@ def extract_text(raw: bytes) -> str:
         raise AppError(
             "Не удалось прочитать PDF", code="invalid_pdf", status_code=422
         ) from exc
+    text = text[:MAX_TEXT_CHARS]
     if not text.strip():
         raise AppError(
             "В PDF нет текста (возможно, это скан). Заполните профиль вручную",

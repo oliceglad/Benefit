@@ -25,4 +25,5 @@ USER appuser
 EXPOSE 8000
 
 ENTRYPOINT ["scripts/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Кадр WebSocket не больше 256 КБ (сообщение — до 4000 символов).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--ws-max-size", "262144"]

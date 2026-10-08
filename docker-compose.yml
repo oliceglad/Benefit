@@ -23,6 +23,8 @@ x-common-env: &common-env
   AUTH_JWKS_URL: http://auth-service:8000/.well-known/jwks.json
   AUTH_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
   INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
+  # Адреса фронтенда: WebSocket с авторизацией по cookie — только с них.
+  TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-["http://localhost:3000","http://localhost:8000"]}
 
 # Внутренние адреса сервисов (docker-сеть).
 x-service-urls: &service-urls
@@ -47,6 +49,8 @@ services:
     build:
       context: ./backend/gateway
     ports:
+      # Единственный порт, доступный извне. Базы данных, Mailpit, Keycloak
+      # и mock ФСП ID опубликованы только на 127.0.0.1 (для разработки).
       - "${GATEWAY_PORT:-8000}:80"
     depends_on:
       core:
@@ -77,7 +81,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -107,19 +111,22 @@ services:
       POSTGRES_USER: ${AUTH_DB_USER:-auth}
       POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-auth}
     ports:
-      - "${AUTH_DB_PORT:-5433}:5432"
+      - "127.0.0.1:${AUTH_DB_PORT:-5433}:5432"
     volumes:
       - auth_db_data:/var/lib/postgresql/data
 
   auth-service:
     <<: *service-defaults
     build:
-      context: ./backend/auth-service
+      context: ./backend
+      dockerfile: auth-service/Dockerfile
     environment:
       APP_ENV: ${APP_ENV:-local}
       DEBUG: ${DEBUG:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      CORS_ORIGINS: ${CORS_ORIGINS:-[]}
+      # CORS обрабатывает шлюз (с поддержкой cookie).
+      CORS_ORIGINS: "[]"
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       PUBLIC_URL: ${AUTH_PUBLIC_URL:-http://localhost:8000}
       JWT_ISSUER: ${AUTH_PUBLIC_URL:-http://localhost:8000}
       POSTGRES_HOST: auth-db
@@ -160,7 +167,7 @@ services:
       POSTGRES_USER: ${CANDIDATE_DB_USER:-candidates}
       POSTGRES_PASSWORD: ${CANDIDATE_DB_PASSWORD:-candidates}
     ports:
-      - "${CANDIDATE_DB_PORT:-5434}:5432"
+      - "127.0.0.1:${CANDIDATE_DB_PORT:-5434}:5432"
     volumes:
       - candidate_db_data:/var/lib/postgresql/data
 
@@ -196,7 +203,7 @@ services:
       POSTGRES_USER: ${ASSESSMENT_DB_USER:-assessments}
       POSTGRES_PASSWORD: ${ASSESSMENT_DB_PASSWORD:-assessments}
     ports:
-      - "${ASSESSMENT_DB_PORT:-5435}:5432"
+      - "127.0.0.1:${ASSESSMENT_DB_PORT:-5435}:5432"
     volumes:
       - assessment_db_data:/var/lib/postgresql/data
 
@@ -235,7 +242,7 @@ services:
       POSTGRES_USER: ${APPLICATIONS_DB_USER:-applications}
       POSTGRES_PASSWORD: ${APPLICATIONS_DB_PASSWORD:-applications}
     ports:
-      - "${APPLICATIONS_DB_PORT:-5437}:5432"
+      - "127.0.0.1:${APPLICATIONS_DB_PORT:-5437}:5432"
     volumes:
       - applications_db_data:/var/lib/postgresql/data
 
@@ -270,7 +277,7 @@ services:
       POSTGRES_USER: ${EMPLOYER_DB_USER:-employers}
       POSTGRES_PASSWORD: ${EMPLOYER_DB_PASSWORD:-employers}
     ports:
-      - "${EMPLOYER_DB_PORT:-5439}:5432"
+      - "127.0.0.1:${EMPLOYER_DB_PORT:-5439}:5432"
     volumes:
       - employer_db_data:/var/lib/postgresql/data
 
@@ -303,7 +310,7 @@ services:
       POSTGRES_USER: ${MATCHING_DB_USER:-matching}
       POSTGRES_PASSWORD: ${MATCHING_DB_PASSWORD:-matching}
     ports:
-      - "${MATCHING_DB_PORT:-5440}:5432"
+      - "127.0.0.1:${MATCHING_DB_PORT:-5440}:5432"
     volumes:
       - matching_db_data:/var/lib/postgresql/data
 
@@ -336,7 +343,7 @@ services:
       POSTGRES_USER: ${CHAT_DB_USER:-chat}
       POSTGRES_PASSWORD: ${CHAT_DB_PASSWORD:-chat}
     ports:
-      - "${CHAT_DB_PORT:-5438}:5432"
+      - "127.0.0.1:${CHAT_DB_PORT:-5438}:5432"
     volumes:
       - chat_db_data:/var/lib/postgresql/data
 
@@ -374,7 +381,7 @@ services:
       POSTGRES_USER: ${NOTIFICATION_DB_USER:-notifications}
       POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-notifications}
     ports:
-      - "${NOTIFICATION_DB_PORT:-5436}:5432"
+      - "127.0.0.1:${NOTIFICATION_DB_PORT:-5436}:5432"
     volumes:
       - notification_db_data:/var/lib/postgresql/data
 
@@ -403,7 +410,8 @@ services:
   mail-service:
     <<: *service-defaults
     build:
-      context: ./backend/mail-service
+      context: ./backend
+      dockerfile: mail-service/Dockerfile
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
@@ -423,7 +431,7 @@ services:
     <<: *service-defaults
     image: axllent/mailpit:latest
     ports:
-      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
 
   # --- Внешние провайдеры --------------------------------------------------
   fsp-id-mock:
@@ -436,7 +444,7 @@ services:
       CLIENT_SECRET: ${FSP_ID_CLIENT_SECRET:-fsp-dev-secret}
       REDIRECT_URIS: '["${AUTH_PUBLIC_URL:-http://localhost:8000}/api/v1/auth/oauth/fsp_id/callback"]'
     ports:
-      - "${FSP_ID_PORT:-8003}:8000"
+      - "127.0.0.1:${FSP_ID_PORT:-8003}:8000"
 
   keycloak:
     <<: *service-defaults
@@ -449,7 +457,7 @@ services:
       KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
       KC_HTTP_ENABLED: "true"
     ports:
-      - "${KEYCLOAK_PORT:-8080}:8080"
+      - "127.0.0.1:${KEYCLOAK_PORT:-8080}:8080"
     volumes:
       - ./backend/keycloak:/opt/keycloak/data/import:ro
 

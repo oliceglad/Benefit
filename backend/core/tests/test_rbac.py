@@ -19,6 +19,13 @@ async def employer_only(
     return {"email": user.email}
 
 
+@_router.post("/_test/employer-only")
+async def employer_action(
+    user: Annotated[Principal, Depends(require_roles(Role.EMPLOYER))],
+) -> dict[str, str]:
+    return {"email": user.email}
+
+
 app.include_router(_router)
 
 
@@ -56,3 +63,29 @@ async def test_invalid_tokens_rejected(client: AsyncClient, token: str | None) -
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     response = await client.get("/_test/employer-only", headers=headers)
     assert response.status_code == 401
+
+
+async def test_cookie_auth_and_csrf() -> None:
+    from httpx import ASGITransport
+
+    user = TestUser("employer")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", cookies=user.cookies()
+    ) as client:
+        assert (await client.get("/_test/employer-only")).status_code == 200
+        # Изменяющий запрос по cookie без CSRF-заголовка отклоняется.
+        assert (await client.post("/_test/employer-only")).status_code == 403
+        wrong = await client.post(
+            "/_test/employer-only", headers={"X-CSRF-Token": "other"}
+        )
+        assert wrong.status_code == 403
+        ok = await client.post(
+            "/_test/employer-only", headers={"X-CSRF-Token": "test-csrf"}
+        )
+        assert ok.status_code == 200
+
+
+async def test_bearer_header_needs_no_csrf(client: AsyncClient) -> None:
+    user = TestUser("employer")
+    response = await client.post("/_test/employer-only", headers=user.headers)
+    assert response.status_code == 200

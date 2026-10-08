@@ -12,7 +12,8 @@ from app.core.config import settings
 
 engine = create_async_engine(
     settings.database_url,
-    echo=settings.debug,
+    # SQL-логи с параметрами — только при локальной отладке.
+    echo=settings.debug and settings.app_env == "local",
     pool_pre_ping=True,
 )
 

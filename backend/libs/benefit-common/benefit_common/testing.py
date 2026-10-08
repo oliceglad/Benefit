@@ -48,7 +48,16 @@ class TestUser:
         self.id = uuid.uuid4()
         self.role = role
         self.email = email
-        self.headers = {"Authorization": f"Bearer {make_token(self.id, role, email)}"}
+        self.token = make_token(self.id, role, email)
+        self.headers = {"Authorization": f"Bearer {self.token}"}
+
+    def cookies(self, csrf: str = "test-csrf") -> dict[str, str]:
+        """Cookie, которые выставляет auth-service в режиме cookie."""
+        settings = get_common_settings()
+        return {
+            settings.access_cookie_name: self.token,
+            settings.csrf_cookie_name: csrf,
+        }
 
 
 async def ensure_database(

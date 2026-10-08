@@ -5,10 +5,12 @@ from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
 import jwt
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.cookies import csrf_ok
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.jwt import decode_access_token
 from app.db.session import get_session
@@ -49,12 +51,21 @@ ProviderRegistryDep = Annotated[ProviderRegistry, Depends(get_provider_registry)
 
 
 def get_token_claims(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> dict[str, Any]:
-    if credentials is None:
+    """Access-токен из заголовка ``Authorization`` или из cookie."""
+    token = credentials.credentials if credentials else None
+    if token is None:
+        token = request.cookies.get(settings.access_cookie_name)
+        if token and not csrf_ok(request):
+            raise ForbiddenError(
+                "CSRF-токен отсутствует или неверен", code="csrf_failed"
+            )
+    if not token:
         raise UnauthorizedError(headers={"WWW-Authenticate": "Bearer"})
     try:
-        return decode_access_token(credentials.credentials)
+        return decode_access_token(token)
     except jwt.PyJWTError as exc:
         raise UnauthorizedError(
             "Недействительный токен",

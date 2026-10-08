@@ -83,3 +83,23 @@ async def test_sends_notification_with_escaped_html(
     assert "Посмотреть: http://localhost:3000/invitations/1" in (
         message.get_body(("plain",)).get_content()
     )
+
+
+async def test_newlines_in_subject_are_neutralized(
+    client: AsyncClient, sender: FakeSender
+) -> None:
+    response = await client.post(
+        "/api/v1/emails/notification",
+        json={
+            "to": "dev@mail.ru",
+            "subject": "Вакансия\r\nBcc: victim@mail.ru",
+            "title": "Заголовок",
+            "body": "Текст",
+        },
+        headers={"X-Internal-Token": settings.internal_api_token},
+    )
+
+    assert response.status_code == 202
+    [message] = sender.sent
+    assert message["Subject"] == "Вакансия Bcc: victim@mail.ru"
+    assert message["Bcc"] is None

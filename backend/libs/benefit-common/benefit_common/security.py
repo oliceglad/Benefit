@@ -13,9 +13,10 @@ from typing import Annotated, Any
 
 import httpx
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from benefit_common.cookies import access_token_from_cookie, csrf_ok
 from benefit_common.settings import get_common_settings
 
 JWKS_TTL_SECONDS = 600
@@ -108,15 +109,30 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 async def get_current_principal(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> Principal:
-    if credentials is None:
+    """Access-токен из заголовка ``Authorization`` или из cookie.
+
+    При авторизации cookie изменяющие запросы проверяются на CSRF.
+    """
+    token = credentials.credentials if credentials else None
+    from_cookie = False
+    if token is None:
+        token = access_token_from_cookie(request.cookies)
+        from_cookie = token is not None
+    if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if from_cookie and not csrf_ok(request.method, request.cookies, request.headers):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF-токен отсутствует или неверен",
+        )
     try:
-        return await verify_access_token(credentials.credentials)
+        return await verify_access_token(token)
     except TokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

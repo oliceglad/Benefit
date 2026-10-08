@@ -4,13 +4,13 @@ import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from benefit_common.errors import register_exception_handlers
+from benefit_common.observability import setup_app
 from fastapi import APIRouter, FastAPI
 
 from app.api.internal.router import router as internal_router
 from app.api.v1.endpoints.notifications import router as notifications_router
 from app.core.config import settings
-from app.core.logging import setup_logging
+from app.core.logging import SERVICE_NAME, setup_logging
 from app.db.session import async_session_factory, engine
 from app.services.delivery import build_relay
 
@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
         openapi_url=f"{settings.api_prefix}/openapi.json",
     )
-    register_exception_handlers(app)
+    setup_app(app, SERVICE_NAME)
     app.include_router(health_router, prefix=settings.api_prefix)
     app.include_router(notifications_router, prefix=settings.api_prefix)
     app.include_router(internal_router)

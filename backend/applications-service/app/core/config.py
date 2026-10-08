@@ -31,6 +31,8 @@ class Settings(BaseSettings):
 
     # Срок, в течение которого кандидат может ответить на приглашение.
     invitation_ttl_days: int = 14
+    # Защита кандидатов от спама: приглашений одного работодателя в сутки.
+    invitations_per_day: int = 100
 
     outbox_relay_enabled: bool = True
 

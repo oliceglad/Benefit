@@ -52,6 +52,18 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
 
+    # Токены в cookie (режим включается заголовком X-Auth-Mode: cookie).
+    # Имена совпадают с настройками benefit_common в других сервисах.
+    access_cookie_name: str = "benefit_access"
+    refresh_cookie_name: str = "benefit_refresh"
+    csrf_cookie_name: str = "benefit_csrf"
+    csrf_header_name: str = "X-CSRF-Token"
+    # Secure обязателен в production; на http://localhost — выключен.
+    cookie_secure: bool = False
+    cookie_domain: str | None = None
+    # Refresh-cookie отправляется браузером только в auth-service.
+    refresh_cookie_path: str = "/api/v1/auth"
+
     # Регистрация по почте разрешена только для российских доменов.
     allowed_email_tlds: list[str] = ["ru", "su", "рф"]
     allowed_email_domains: list[str] = []
@@ -60,6 +72,10 @@ class Settings(BaseSettings):
     verification_code_ttl_minutes: int = 10
     verification_code_max_attempts: int = 5
     verification_resend_cooldown_seconds: int = 60
+
+    # После N неудачных попыток входа аккаунт блокируется на M минут.
+    login_max_failures: int = 10
+    login_lock_minutes: int = 15
 
     # Межсервисное взаимодействие.
     mail_service_url: str = "http://localhost:8002"
@@ -113,6 +129,14 @@ class Settings(BaseSettings):
                 )
             if not self.jwt_private_key and not self.jwt_private_key_path.exists():
                 raise ValueError("Ключ подписи JWT обязателен в production")
+            if not self.cookie_secure:
+                raise ValueError("COOKIE_SECURE=true обязателен в production")
+            if self.fsp_id_enabled and "localhost" in self.fsp_id_issuer:
+                raise ValueError(
+                    "FSP_ID_ISSUER указывает на mock — задайте настоящий ФСП ID"
+                )
+            if self.debug:
+                raise ValueError("DEBUG=true недопустим в production")
         return self
 
 

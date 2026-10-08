@@ -57,6 +57,11 @@ class ConsentService:
             )
         return result
 
+    async def has(self, user_id: uuid.UUID, consent_type: ConsentType) -> bool:
+        return any(
+            s.granted for s in await self.statuses(user_id) if s.type == consent_type
+        )
+
     async def has_all(self, user_id: uuid.UUID) -> bool:
         return all(s.granted for s in await self.statuses(user_id))
 

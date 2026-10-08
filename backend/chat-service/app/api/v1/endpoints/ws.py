@@ -4,6 +4,7 @@
 
 Клиент → сервер
     {"type": "auth", "token": "<access token>"}       первым сообщением
+                                                      (не нужно, если токен в cookie)
     {"type": "message.send", "conversation_id", "text", "attachment_ids", "client_id"}
     {"type": "typing", "conversation_id"}
     {"type": "read", "conversation_id", "message_id"?}
@@ -21,14 +22,18 @@
     {"type": "ping"} / {"type": "pong"}
 
 Токен передаётся сообщением, а не в URL, чтобы не попадать в логи прокси.
+В режиме cookie браузер сам отправляет ``benefit_access`` при подключении.
 """
 
 import asyncio
 import contextlib
 import logging
+import time
 import uuid
+from collections import deque
 from typing import Any
 
+from benefit_common.cookies import access_token_from_cookie, origin_trusted
 from benefit_common.errors import AppError
 from benefit_common.security import Principal, TokenError, verify_access_token
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -47,9 +52,45 @@ router = APIRouter()
 
 # Коды закрытия (диапазон 4000–4999 — для приложений).
 CLOSE_UNAUTHORIZED = 4401
+CLOSE_RATE_LIMITED = 4429
+
+# Не больше N сообщений клиента за окно; при злостном превышении — разрыв.
+RATE_LIMIT_MESSAGES = 30
+RATE_LIMIT_WINDOW_SECONDS = 10.0
+RATE_LIMIT_STRIKES = 3
+
+
+class RateLimiter:
+    def __init__(self) -> None:
+        self.events: deque[float] = deque()
+        self.strikes = 0
+
+    def allow(self) -> bool:
+        now = time.monotonic()
+        while self.events and now - self.events[0] > RATE_LIMIT_WINDOW_SECONDS:
+            self.events.popleft()
+        if len(self.events) >= RATE_LIMIT_MESSAGES:
+            self.strikes += 1
+            return False
+        self.events.append(now)
+        return True
 
 
 async def _authenticate(websocket: WebSocket) -> Principal | None:
+    """Авторизация по cookie (браузер отправляет её при подключении) или
+    первым сообщением ``auth``.
+
+    По cookie принимаются только подключения с доверенного Origin: иначе
+    чужой сайт мог бы открыть WebSocket от имени пользователя.
+    """
+    token = access_token_from_cookie(websocket.cookies)
+    if token is not None:
+        if not origin_trusted(websocket.headers):
+            return None
+        try:
+            return await verify_access_token(token)
+        except TokenError:
+            return None
     try:
         message = await asyncio.wait_for(
             websocket.receive_json(), timeout=settings.ws_auth_timeout_seconds
@@ -117,6 +158,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     pinger = asyncio.create_task(_ping(websocket))
     try:
         await websocket.send_json({"type": "ready", "user_id": str(principal.id)})
+        limiter = RateLimiter()
         while True:
             try:
                 message = await websocket.receive_json()
@@ -130,6 +172,20 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 )
                 continue
             if not isinstance(message, dict):
+                continue
+            if not limiter.allow():
+                if limiter.strikes >= RATE_LIMIT_STRIKES:
+                    await websocket.close(
+                        code=CLOSE_RATE_LIMITED, reason="rate limited"
+                    )
+                    return
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "code": "rate_limited",
+                        "message": "Слишком много сообщений, подождите немного",
+                    }
+                )
                 continue
             try:
                 reply = await _handle(principal, message)

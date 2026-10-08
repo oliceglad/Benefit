@@ -86,6 +86,19 @@ class InvitationService:
         if snapshot is None or snapshot.get("status") != "published":
             raise NotFoundError("Кандидат не найден", code="candidate_not_found")
 
+        sent_today = await self.session.scalar(
+            select(func.count()).where(
+                Invitation.employer_id == employer.id,
+                Invitation.created_at > datetime.now(UTC) - timedelta(days=1),
+            )
+        )
+        if (sent_today or 0) >= settings.invitations_per_day:
+            raise AppError(
+                f"Можно отправить не больше {settings.invitations_per_day} "
+                "приглашений в сутки",
+                code="invitation_limit",
+                status_code=429,
+            )
         offer = await self._resolve_offer(employer, data.vacancy)
         duplicate = await self.session.scalar(
             select(Invitation.id).where(

@@ -121,3 +121,64 @@ async def test_events_only_for_participants(
         await ws.send_json({"type": "ping"})
         # Первое, что получит посторонний, — ответ на пинг, а не сообщение.
         assert (await ws.receive_json(timeout=5))["type"] == "pong"
+
+
+async def test_cookie_auth_with_trusted_origin(
+    client: AsyncClient, candidate: TestUser, employer: TestUser, conversation: str
+) -> None:
+    async with (
+        ws_client() as wsc,
+        aconnect_ws(
+            WS,
+            wsc,
+            headers={
+                "Cookie": f"benefit_access={candidate.token}",
+                "Origin": "http://localhost:3000",
+            },
+        ) as ws,
+    ):
+        # Сообщение auth не нужно: токен пришёл в cookie.
+        assert (await ws.receive_json(timeout=5))["type"] == "ready"
+        await client.post(
+            f"{API}/conversations/{conversation}/messages",
+            json={"text": "Через cookie"},
+            headers=employer.headers,
+        )
+        event = await receive(ws, "message.created")
+        assert event["message"]["text"] == "Через cookie"
+
+
+async def test_cookie_auth_rejects_foreign_origin(candidate: TestUser) -> None:
+    async with (
+        ws_client() as wsc,
+        aconnect_ws(
+            WS,
+            wsc,
+            headers={
+                "Cookie": f"benefit_access={candidate.token}",
+                "Origin": "https://evil.example",
+            },
+        ) as ws,
+    ):
+        with pytest.raises(WebSocketDisconnect) as exc:
+            await ws.receive_json(timeout=5)
+        assert exc.value.code == 4401
+
+
+async def test_ws_rate_limit(candidate: TestUser, conversation: str) -> None:
+    async with ws_client() as wsc, aconnect_ws(WS, wsc) as ws:
+        await auth(ws, candidate)
+        # 30 сообщений в окне — нормально, дальше — предупреждения.
+        for _ in range(32):
+            await ws.send_json({"type": "ping"})
+        events = [await ws.receive_json(timeout=5) for _ in range(32)]
+        assert events.count({"type": "pong"}) == 30
+        assert [e["code"] for e in events if e["type"] == "error"] == [
+            "rate_limited"
+        ] * 2
+
+        # Злостное превышение — разрыв соединения.
+        await ws.send_json({"type": "ping"})
+        with pytest.raises(WebSocketDisconnect) as exc:
+            await ws.receive_json(timeout=5)
+        assert exc.value.code == 4429

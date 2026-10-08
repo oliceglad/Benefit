@@ -50,7 +50,8 @@ class LoginRequest(EmailRequest):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str = Field(max_length=256)
+    # Не указан — берётся из cookie (режим cookie).
+    refresh_token: str | None = Field(default=None, max_length=256)
 
 
 class OAuthExchangeRequest(BaseModel):
@@ -58,11 +59,16 @@ class OAuthExchangeRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
+    """В режиме cookie токены в теле не возвращаются (они в HttpOnly-cookie),
+    вместо них — ``csrf_token`` для заголовка ``X-CSRF-Token``."""
+
+    access_token: str | None
+    refresh_token: str | None
     token_type: Literal["Bearer"] = "Bearer"
     expires_in: int
     refresh_expires_in: int
+    delivery: Literal["body", "cookie"] = "body"
+    csrf_token: str | None = None
 
 
 class AuthorizationUrlResponse(BaseModel):

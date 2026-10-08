@@ -6,7 +6,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from benefit_common.errors import register_exception_handlers
+from benefit_common.observability import setup_app
 from fastapi import FastAPI
 
 from app.api.internal.router import router as internal_router
@@ -14,7 +14,7 @@ from app.api.v1.endpoints.chat import router as chat_router
 from app.api.v1.endpoints.tasks import router as tasks_router
 from app.api.v1.endpoints.ws import router as ws_router
 from app.core.config import settings
-from app.core.logging import setup_logging
+from app.core.logging import SERVICE_NAME, setup_logging
 from app.db.session import async_session_factory, engine
 from app.services.chat import ChatService
 from app.services.delivery import build_relay
@@ -66,7 +66,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
         openapi_url=f"{settings.api_prefix}/openapi.json",
     )
-    register_exception_handlers(app)
+    setup_app(app, SERVICE_NAME)
     app.include_router(chat_router, prefix=settings.api_prefix)
     app.include_router(tasks_router, prefix=settings.api_prefix)
     app.include_router(ws_router, prefix=settings.api_prefix)
