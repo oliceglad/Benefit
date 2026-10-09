@@ -11,8 +11,9 @@ import type {
   RegisterResponse,
   TokenResponse,
 } from '@/shared/api/generated/auth/models'
-import { ApiError } from '@/shared/api/transport/api-error'
-import { session } from '@/shared/session/session'
+import { ApiError, isApiError } from '@/shared/api/transport/api-error'
+import { invalidateSessionForLogout } from '@/shared/api/transport/orval-fetch'
+import { session, type SessionUser } from '@/shared/session/session'
 
 type RegisterCandidateInput = {
   email: string
@@ -20,45 +21,108 @@ type RegisterCandidateInput = {
   fullName?: string
 }
 
-async function establishCandidateSession(tokenData: TokenResponse): Promise<void> {
-  session.clear()
-  session.setTokens({
-    accessToken: tokenData.access_token,
-    refreshToken: tokenData.refresh_token,
-    expiresIn: tokenData.expires_in,
-    refreshExpiresIn: tokenData.refresh_expires_in,
-  })
+let restoreOperation: Promise<boolean> | null = null
 
+function candidateUser(user: {
+  id: string
+  email: string
+  role: string
+  full_name?: string | null
+  is_email_verified: boolean
+}): SessionUser {
+  if (user.role !== 'candidate') {
+    throw new ApiError({
+      status: 403,
+      code: 'candidate_access_required',
+      message: 'Этот кабинет доступен только пользователям с ролью кандидата.',
+    })
+  }
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    fullName: user.full_name,
+    isEmailVerified: user.is_email_verified,
+  }
+}
+
+async function loadCurrentCandidate(revision: number): Promise<boolean> {
+  const { data: user } = await meApiV1UsersMeGet()
+  if (!session.isRevisionCurrent(revision)) return false
+  session.setAuthenticated(candidateUser(user))
+  return true
+}
+
+async function clearServerSession(): Promise<void> {
   try {
-    const { data: user } = await meApiV1UsersMeGet()
-    if (user.role !== 'candidate') {
+    await logoutApiV1AuthLogoutPost()
+  } catch {
+    // The local session still stays closed. A later reload will retry the server cookie.
+  }
+}
+
+async function establishCandidateSession(tokenData: TokenResponse): Promise<void> {
+  if (tokenData.delivery !== 'cookie') {
+    throw new ApiError({
+      status: 502,
+      code: 'cookie_session_not_established',
+      message: 'Сервер не создал защищённую сессию. Попробуйте войти ещё раз.',
+    })
+  }
+
+  const revision = session.getRevision()
+  try {
+    if (!(await loadCurrentCandidate(revision))) {
       throw new ApiError({
-        status: 403,
-        code: 'candidate_access_required',
-        message: 'Этот кабинет доступен только пользователям с ролью кандидата.',
+        status: 401,
+        code: 'session_changed',
+        message: 'Сессия была изменена. Повторите вход.',
       })
     }
-
-    session.setUser({
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      fullName: user.full_name,
-      isEmailVerified: user.is_email_verified,
-    })
   } catch (error) {
-    session.clear()
+    session.setAnonymousIfCurrent(revision)
+    await clearServerSession()
     throw error
   }
 }
 
+export async function restoreCandidateSession(): Promise<boolean> {
+  const snapshot = session.getSnapshot()
+  if (snapshot.status === 'authenticated') return true
+  if (snapshot.status === 'anonymous') return false
+  if (restoreOperation) return restoreOperation
+
+  const revision = session.getRevision()
+  const operation = (async () => {
+    try {
+      return await loadCurrentCandidate(revision)
+    } catch (error) {
+      session.setAnonymousIfCurrent(revision)
+      if (isApiError(error) && (error.status === 401 || error.code === 'candidate_access_required')) {
+        if (error.code === 'candidate_access_required') await clearServerSession()
+        return false
+      }
+      throw error
+    } finally {
+      restoreOperation = null
+    }
+  })()
+  restoreOperation = operation
+  return operation
+}
+
 export async function loginCandidate(credentials: LoginRequest): Promise<void> {
-  session.clear()
-  const tokenResponse = await loginApiV1AuthLoginPost(credentials)
-  if (tokenResponse.status !== 200) {
-    throw new ApiError({ status: tokenResponse.status, code: 'login_failed', message: 'Не удалось войти.' })
+  session.setUnknown()
+  try {
+    const tokenResponse = await loginApiV1AuthLoginPost(credentials)
+    if (tokenResponse.status !== 200) {
+      throw new ApiError({ status: tokenResponse.status, code: 'login_failed', message: 'Не удалось войти.' })
+    }
+    await establishCandidateSession(tokenResponse.data)
+  } catch (error) {
+    session.setAnonymous()
+    throw error
   }
-  await establishCandidateSession(tokenResponse.data)
 }
 
 export async function registerCandidate(input: RegisterCandidateInput): Promise<RegisterResponse> {
@@ -79,15 +143,21 @@ export async function registerCandidate(input: RegisterCandidateInput): Promise<
 }
 
 export async function verifyCandidateEmail(email: string, code: string): Promise<void> {
-  const response = await verifyEmailApiV1AuthVerifyEmailPost({ email, code })
-  if (response.status !== 200) {
-    throw new ApiError({
-      status: response.status,
-      code: 'verification_failed',
-      message: 'Не удалось подтвердить почту.',
-    })
+  session.setUnknown()
+  try {
+    const response = await verifyEmailApiV1AuthVerifyEmailPost({ email, code })
+    if (response.status !== 200) {
+      throw new ApiError({
+        status: response.status,
+        code: 'verification_failed',
+        message: 'Не удалось подтвердить почту.',
+      })
+    }
+    await establishCandidateSession(response.data)
+  } catch (error) {
+    session.setAnonymous()
+    throw error
   }
-  await establishCandidateSession(response.data)
 }
 
 export async function resendVerificationCode(email: string): Promise<void> {
@@ -102,10 +172,12 @@ export async function resendVerificationCode(email: string): Promise<void> {
 }
 
 export async function logoutCandidate(): Promise<void> {
-  const refreshToken = session.getSnapshot().tokens?.refreshToken
-  session.clear()
+  await invalidateSessionForLogout()
+  await logoutApiV1AuthLogoutPost()
+}
 
-  if (refreshToken) {
-    await logoutApiV1AuthLogoutPost({ refresh_token: refreshToken })
-  }
+export const authTestApi = {
+  reset(): void {
+    restoreOperation = null
+  },
 }

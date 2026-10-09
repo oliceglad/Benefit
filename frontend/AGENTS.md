@@ -35,16 +35,22 @@ pnpm dev
   must not import another feature's private files.
 - `src/shared/ui` contains API-independent primitives.
 - `src/shared/api/generated` is produced by Orval and is never edited manually.
-- `src/shared/api/transport` owns gateway access, Bearer headers and errors.
-- `src/shared/session` is the only place allowed to hold access/refresh tokens.
+- `src/shared/api/transport` owns gateway access, cookie credentials, CSRF,
+  refresh coordination and errors.
+- `src/shared/session` holds only the in-memory session status and current user.
+  Access and refresh tokens must remain in backend-managed HttpOnly cookies.
 - `shared` must never import `features` or `app`.
 
 ## API and session rules
 
 - Browser requests use same-origin `/api` paths through the Vite proxy in
   development. Never hardcode `localhost:8000` in components.
-- Keep access and refresh tokens in memory. Until the backend provides an
-  HttpOnly-cookie/BFF contract, a page reload intentionally requires login.
+- Request cookie delivery with `X-Auth-Mode: cookie`; never expose access or
+  refresh tokens to application code or browser storage.
+- Send requests with credentials and add the `benefit_csrf` cookie value as
+  `X-CSRF-Token` for state-changing requests.
+- Restore an existing session through `/users/me` and one cookie refresh when
+  the application starts.
 - A 401 may trigger at most one shared refresh operation and one request replay.
 - Do not retry login, refresh, logout or other mutations automatically.
 - On logout or terminal refresh failure, clear private TanStack Query data.

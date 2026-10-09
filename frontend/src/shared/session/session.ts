@@ -1,12 +1,5 @@
 import { useSyncExternalStore } from 'react'
 
-export type SessionTokens = {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number
-  refreshExpiresIn: number
-}
-
 export type SessionUser = {
   id: string
   email: string
@@ -15,13 +8,15 @@ export type SessionUser = {
   isEmailVerified: boolean
 }
 
+export type SessionStatus = 'unknown' | 'authenticated' | 'anonymous'
+
 export type SessionSnapshot = {
-  tokens: SessionTokens | null
+  status: SessionStatus
   user: SessionUser | null
 }
 
-class MemorySession {
-  private snapshot: SessionSnapshot = { tokens: null, user: null }
+class CookieSession {
+  private snapshot: SessionSnapshot = { status: 'unknown', user: null }
   private revision = 0
   private readonly listeners = new Set<() => void>()
 
@@ -29,63 +24,49 @@ class MemorySession {
 
   getRevision = (): number => this.revision
 
+  isRevisionCurrent(revision: number): boolean {
+    return this.revision === revision
+  }
+
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
 
-  setTokens(tokens: SessionTokens): void {
-    this.snapshot = { ...this.snapshot, tokens }
-    this.revision += 1
-    this.emit()
+  setUnknown(): void {
+    this.update({ status: 'unknown', user: null })
   }
 
-  replaceTokensIfCurrent(
-    tokens: SessionTokens,
-    expectedRevision: number,
-    expectedRefreshToken: string,
-  ): boolean {
-    if (
-      this.revision !== expectedRevision ||
-      this.snapshot.tokens?.refreshToken !== expectedRefreshToken
-    ) {
-      return false
-    }
-    this.snapshot = { ...this.snapshot, tokens }
-    this.revision += 1
-    this.emit()
+  setAuthenticated(user: SessionUser): void {
+    this.update({ status: 'authenticated', user })
+  }
+
+  setAnonymous(): void {
+    this.update({ status: 'anonymous', user: null })
+  }
+
+  setAnonymousIfCurrent(expectedRevision: number): boolean {
+    if (!this.isRevisionCurrent(expectedRevision)) return false
+    this.setAnonymous()
     return true
-  }
-
-  setUser(user: SessionUser): void {
-    this.snapshot = { ...this.snapshot, user }
-    this.revision += 1
-    this.emit()
   }
 
   clear(): void {
-    this.snapshot = { tokens: null, user: null }
+    this.setAnonymous()
+  }
+
+  reset(): void {
+    this.update({ status: 'unknown', user: null })
+  }
+
+  private update(snapshot: SessionSnapshot): void {
+    this.snapshot = snapshot
     this.revision += 1
-    this.emit()
-  }
-
-  clearIfCurrent(expectedRevision: number, expectedRefreshToken: string): boolean {
-    if (
-      this.revision !== expectedRevision ||
-      this.snapshot.tokens?.refreshToken !== expectedRefreshToken
-    ) {
-      return false
-    }
-    this.clear()
-    return true
-  }
-
-  private emit(): void {
     this.listeners.forEach((listener) => listener())
   }
 }
 
-export const session = new MemorySession()
+export const session = new CookieSession()
 
 export function useSession(): SessionSnapshot {
   return useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot)

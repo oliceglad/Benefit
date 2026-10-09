@@ -6,6 +6,5 @@
  */
 
 export interface RefreshRequest {
-  /** @maxLength 256 */
-  refresh_token: string;
+  refresh_token?: string | null;
 }

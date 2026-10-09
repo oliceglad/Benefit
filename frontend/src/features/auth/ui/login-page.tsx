@@ -37,7 +37,7 @@ export function LoginPage() {
   })
   const login = useMutation({
     mutationFn: loginCandidate,
-    onSuccess: () => navigate({ to: '/profile', replace: true }),
+    onSuccess: () => navigate({ to: '/profile', search: { section: 'personal' }, replace: true }),
   })
   const emailNotVerified = isApiError(login.error) && login.error.code === 'email_not_verified'
 
@@ -120,9 +120,6 @@ export function LoginPage() {
         </CardContent>
       </Card>
 
-      <p className="px-4 text-center text-xs leading-5 text-muted-foreground">
-        После обновления страницы потребуется войти снова.
-      </p>
     </AuthPageLayout>
   )
 }

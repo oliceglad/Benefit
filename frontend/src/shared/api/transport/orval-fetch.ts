@@ -1,7 +1,8 @@
 import { ApiError, type FieldIssue } from './api-error'
-import { session, type SessionTokens } from '@/shared/session/session'
+import { session } from '@/shared/session/session'
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+const csrfCookieName = 'benefit_csrf'
 
 const noRefreshPaths = new Set([
   '/api/v1/auth/login',
@@ -13,17 +14,31 @@ const noRefreshPaths = new Set([
   '/api/v1/auth/oauth/exchange',
 ])
 
+const cookieDeliveryPaths = new Set([
+  '/api/v1/auth/login',
+  '/api/v1/auth/verify-email',
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/oauth/exchange',
+])
+
 type RefreshOperation = {
   revision: number
   promise: Promise<boolean>
 }
 
-let refreshOperation: RefreshOperation | null = null
-
+type ErrorDetail = { field?: string; message?: string }
 type ErrorEnvelope = {
-  error?: { code?: string; message?: string }
+  error?: {
+    code?: string
+    message?: string
+    service?: string
+    request_id?: string
+    details?: ErrorDetail[]
+  }
   detail?: Array<{ loc?: Array<string | number>; msg?: string }> | string
 }
+
+let refreshOperation: RefreshOperation | null = null
 
 function toRequestUrl(path: string): string {
   if (/^https?:\/\//.test(path)) return path
@@ -31,8 +46,12 @@ function toRequestUrl(path: string): string {
   return new URL(path, window.location.origin).toString()
 }
 
+function requestPath(path: string): string {
+  return new URL(path, window.location.origin).pathname
+}
+
 function isRefreshable(path: string): boolean {
-  return !noRefreshPaths.has(new URL(path, window.location.origin).pathname)
+  return !noRefreshPaths.has(requestPath(path))
 }
 
 function parseRetryAfter(response: Response): number | null {
@@ -54,6 +73,11 @@ async function parseBody(response: Response): Promise<unknown> {
 }
 
 function fieldIssuesFrom(payload: ErrorEnvelope): FieldIssue[] {
+  if (Array.isArray(payload.error?.details)) {
+    return payload.error.details
+      .filter((issue) => typeof issue.field === 'string' && typeof issue.message === 'string')
+      .map((issue) => ({ field: issue.field as string, message: issue.message as string }))
+  }
   if (!Array.isArray(payload.detail)) return []
   return payload.detail.map((issue) => ({
     field: (issue.loc ?? []).filter((part) => part !== 'body').join('.'),
@@ -76,46 +100,54 @@ async function toApiError(response: Response): Promise<ApiError> {
     message: error?.message ?? detailMessage ?? 'Не удалось выполнить запрос',
     retryAfterSeconds: parseRetryAfter(response),
     fieldIssues: fieldIssuesFrom(payload),
+    service: error?.service ?? null,
+    requestId: error?.request_id ?? null,
   })
 }
 
-function tokenResponse(value: unknown): SessionTokens | null {
-  if (!value || typeof value !== 'object') return null
-  const record = value as Record<string, unknown>
-  if (
-    typeof record.access_token !== 'string' ||
-    typeof record.refresh_token !== 'string' ||
-    typeof record.expires_in !== 'number' ||
-    typeof record.refresh_expires_in !== 'number'
-  ) {
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const prefix = `${encodeURIComponent(name)}=`
+  const part = document.cookie.split('; ').find((item) => item.startsWith(prefix))
+  if (!part) return null
+  try {
+    return decodeURIComponent(part.slice(prefix.length))
+  } catch {
     return null
-  }
-  return {
-    accessToken: record.access_token,
-    refreshToken: record.refresh_token,
-    expiresIn: record.expires_in,
-    refreshExpiresIn: record.refresh_expires_in,
   }
 }
 
+function prepareHeaders(path: string, method: string, source?: HeadersInit): Headers {
+  const headers = new Headers(source)
+  const pathname = requestPath(path)
+  if (cookieDeliveryPaths.has(pathname)) headers.set('X-Auth-Mode', 'cookie')
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+    const csrfToken = readCookie(csrfCookieName)
+    if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+  }
+  return headers
+}
+
+function isCookieDelivery(value: unknown): boolean {
+  return Boolean(value && typeof value === 'object' && (value as Record<string, unknown>).delivery === 'cookie')
+}
+
 async function refreshSession(): Promise<boolean> {
-  const refreshToken = session.getSnapshot().tokens?.refreshToken
-  if (!refreshToken) return false
+  if (session.getSnapshot().status === 'anonymous') return false
   const revision = session.getRevision()
   if (refreshOperation?.revision === revision) return refreshOperation.promise
 
   const operation: RefreshOperation = { revision, promise: Promise.resolve(false) }
   operation.promise = (async () => {
     try {
-      const response = await fetch(toRequestUrl('/api/v1/auth/refresh'), {
+      const path = '/api/v1/auth/refresh'
+      const response = await fetch(toRequestUrl(path), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        credentials: 'include',
+        headers: prepareHeaders(path, 'POST'),
       })
       if (!response.ok) return false
-      const tokens = tokenResponse(await parseBody(response))
-      if (!tokens) return false
-      return session.replaceTokensIfCurrent(tokens, revision, refreshToken)
+      return isCookieDelivery(await parseBody(response)) && session.isRevisionCurrent(revision)
     } catch {
       return false
     } finally {
@@ -125,22 +157,35 @@ async function refreshSession(): Promise<boolean> {
   refreshOperation = operation
 
   const refreshed = await operation.promise
-  if (!refreshed) session.clearIfCurrent(revision, refreshToken)
+  if (!refreshed) session.setAnonymousIfCurrent(revision)
   return refreshed
 }
 
 async function execute(path: string, options: RequestInit, replayed: boolean): Promise<Response> {
-  const headers = new Headers(options.headers)
-  const accessToken = session.getSnapshot().tokens?.accessToken
-  if (accessToken && isRefreshable(path)) headers.set('Authorization', `Bearer ${accessToken}`)
-
-  const response = await fetch(toRequestUrl(path), { ...options, headers })
-  if (response.status !== 401 || replayed || !isRefreshable(path) || !accessToken) {
+  const method = options.method ?? 'GET'
+  const headers = prepareHeaders(path, method, options.headers)
+  const response = await fetch(toRequestUrl(path), {
+    ...options,
+    headers,
+    credentials: 'include',
+  })
+  if (
+    response.status !== 401 ||
+    replayed ||
+    !isRefreshable(path) ||
+    session.getSnapshot().status === 'anonymous'
+  ) {
     return response
   }
 
   if (!(await refreshSession())) return response
   return execute(path, options, true)
+}
+
+export async function invalidateSessionForLogout(): Promise<void> {
+  session.setAnonymous()
+  const pendingRefresh = refreshOperation?.promise
+  if (pendingRefresh) await pendingRefresh
 }
 
 export async function orvalFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -169,6 +214,6 @@ export type BodyType<BodyData> = BodyData
 export const transportTestApi = {
   reset(): void {
     refreshOperation = null
-    session.clear()
+    session.reset()
   },
 }

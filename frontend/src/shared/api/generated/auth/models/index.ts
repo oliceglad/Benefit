@@ -26,6 +26,7 @@ export * from './registerRequest';
 export * from './registerRequestRole';
 export * from './registerResponse';
 export * from './tokenResponse';
+export * from './tokenResponseDelivery';
 export * from './userResponse';
 export * from './userRole';
 export * from './validationError';

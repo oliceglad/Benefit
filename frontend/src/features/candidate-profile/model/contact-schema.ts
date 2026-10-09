@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { normalizePhone, normalizeTelegram } from '@/features/candidate-profile/model/form-values'
+
 const optionalEmail = z
   .string()
   .trim()
@@ -8,14 +10,12 @@ const optionalEmail = z
 
 function validPhone(value: string): boolean {
   if (value === '') return true
-  const digits = value.replace(/[\s()-]/g, '')
-  const normalized = digits.startsWith('8') && digits.length === 11 ? `+7${digits.slice(1)}` : digits
-  return /^\+?\d{10,15}$/.test(normalized)
+  return /^\+\d{10,15}$/.test(normalizePhone(value))
 }
 
 function validTelegram(value: string): boolean {
   if (value === '') return true
-  const handle = value.replace(/^(https?:\/\/)?(t\.me\/|@)/, '')
+  const handle = normalizeTelegram(value).slice(1)
   return /^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(handle)
 }
 

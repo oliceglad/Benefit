@@ -19,15 +19,15 @@ describe('ContactForm', () => {
     let getCount = 0
     let patchCount = 0
 
-    session.setTokens({
-      accessToken: 'access-token',
-      refreshToken: 'refresh-token',
-      expiresIn: 900,
-      refreshExpiresIn: 604800,
+    session.setAuthenticated({
+      id: 'candidate-id',
+      email: 'candidate@example.ru',
+      role: 'candidate',
+      isEmailVerified: true,
     })
     server.use(
       http.get('*/api/v1/candidates/me', ({ request }) => {
-        expect(request.headers.get('Authorization')).toBe('Bearer access-token')
+        expect(request.headers.has('Authorization')).toBe(false)
         getCount += 1
         return HttpResponse.json({ user_id: 'candidate-id', ...contacts })
       }),
@@ -50,7 +50,7 @@ describe('ContactForm', () => {
     const telegram = screen.getByLabelText('Telegram')
     await user.clear(telegram)
     await user.type(telegram, '@candidate_from_samara_longname')
-    await user.click(screen.getByRole('button', { name: 'Сохранить контакты' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить изменения' }))
 
     expect(await screen.findByText('Контакты сохранены')).toBeVisible()
     expect(patchCount).toBe(1)
@@ -58,7 +58,7 @@ describe('ContactForm', () => {
     expect(screen.getByLabelText('Контактная почта')).toHaveValue(
       'very-long-candidate-name@example.ru',
     )
-    await waitFor(() => expect(screen.getByText('Все изменения сохранены')).toBeVisible())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Нет изменений' })).toBeDisabled())
   })
 
   it('reports a successful PATCH separately when the confirmation GET fails', async () => {
@@ -91,9 +91,10 @@ describe('ContactForm', () => {
     const email = await screen.findByLabelText('Контактная почта')
     await user.clear(email)
     await user.type(email, 'saved@example.ru')
-    await user.click(screen.getByRole('button', { name: 'Сохранить контакты' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить изменения' }))
 
-    expect(await screen.findByText('Не удалось получить актуальные данные. Обновите профиль позже.')).toBeVisible()
+    expect(await screen.findByText('Не удалось получить актуальные данные. Повторите получение, прежде чем покинуть раздел.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Повторить получение' })).toBeVisible()
     expect(screen.queryByText('Не удалось сохранить')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Контактная почта')).toHaveValue('saved@example.ru')
   })
@@ -128,6 +129,6 @@ describe('ContactForm', () => {
     })
 
     await waitFor(() => expect(email).toHaveValue('unsaved@example.ru'))
-    expect(screen.getByText('Есть несохранённые изменения')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Сохранить изменения' })).toBeEnabled()
   })
 })

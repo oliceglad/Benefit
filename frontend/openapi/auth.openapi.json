@@ -97,7 +97,7 @@
           "auth"
         ],
         "summary": "Verify Email",
-        "description": "Подтверждение почты кодом из письма. Сразу выполняет вход.",
+        "description": "Подтверждение почты кодом из письма. Сразу выполняет вход.\n\nС заголовком ``X-Auth-Mode: cookie`` токены выставляются в cookie.",
         "operationId": "verify_email_api_v1_auth_verify_email_post",
         "requestBody": {
           "content": {
@@ -179,6 +179,7 @@
           "auth"
         ],
         "summary": "Login",
+        "description": "Вход. С заголовком ``X-Auth-Mode: cookie`` токены — в HttpOnly-cookie.",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
@@ -220,17 +221,24 @@
           "auth"
         ],
         "summary": "Refresh",
-        "description": "Обмен refresh-токена на новую пару (старый refresh-токен отзывается).",
+        "description": "Обмен refresh-токена на новую пару (старый refresh-токен отзывается).\n\nТокен берётся из тела или из cookie ``benefit_refresh``.",
         "operationId": "refresh_api_v1_auth_refresh_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RefreshRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RefreshRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -262,16 +270,24 @@
           "auth"
         ],
         "summary": "Logout",
+        "description": "Отзывает refresh-токен (из тела или cookie) и удаляет cookie.",
         "operationId": "logout_api_v1_auth_logout_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RefreshRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RefreshRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "204": {
@@ -433,7 +449,7 @@
           "oauth"
         ],
         "summary": "Exchange",
-        "description": "Обмен одноразового кода входа на пару токенов.",
+        "description": "Обмен одноразового кода входа на пару токенов\n(``X-Auth-Mode: cookie`` — в cookie).",
         "operationId": "exchange_api_v1_auth_oauth_exchange_post",
         "requestBody": {
           "content": {
@@ -964,15 +980,19 @@
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
-            "type": "string",
-            "maxLength": 256,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Refresh Token"
           }
         },
         "type": "object",
-        "required": [
-          "refresh_token"
-        ],
         "title": "RefreshRequest"
       },
       "RegisterRequest": {
@@ -1046,11 +1066,25 @@
       "TokenResponse": {
         "properties": {
           "access_token": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Access Token"
           },
           "refresh_token": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Refresh Token"
           },
           "token_type": {
@@ -1066,6 +1100,26 @@
           "refresh_expires_in": {
             "type": "integer",
             "title": "Refresh Expires In"
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "title": "Delivery",
+            "default": "body"
+          },
+          "csrf_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csrf Token"
           }
         },
         "type": "object",
@@ -1075,7 +1129,8 @@
           "expires_in",
           "refresh_expires_in"
         ],
-        "title": "TokenResponse"
+        "title": "TokenResponse",
+        "description": "В режиме cookie токены в теле не возвращаются (они в HttpOnly-cookie),\nвместо них — ``csrf_token`` для заголовка ``X-CSRF-Token``."
       },
       "UserResponse": {
         "properties": {

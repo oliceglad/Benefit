@@ -61,7 +61,7 @@ export function VerifyEmailPage() {
     mutationFn: (values: VerifyEmailValues) => verifyCandidateEmail(values.email, values.code),
     onSuccess: () => {
       verificationFlow.clear()
-      void navigate({ to: '/profile', replace: true })
+      void navigate({ to: '/profile', search: { section: 'personal' }, replace: true })
     },
   })
   const resend = useMutation({

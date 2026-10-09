@@ -35,4 +35,11 @@ export default defineConfig({
       './src/shared/api/generated/candidates/models',
     ),
   },
+  assessments: {
+    input: './openapi/assessments.openapi.json',
+    output: output(
+      './src/shared/api/generated/assessments/assessments.ts',
+      './src/shared/api/generated/assessments/models',
+    ),
+  },
 })

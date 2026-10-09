@@ -14,6 +14,25 @@ class TestResizeObserver implements ResizeObserver {
 
 globalThis.ResizeObserver = TestResizeObserver
 document.elementFromPoint = () => null
+HTMLElement.prototype.hasPointerCapture = () => false
+HTMLElement.prototype.setPointerCapture = () => undefined
+HTMLElement.prototype.releasePointerCapture = () => undefined
+HTMLElement.prototype.scrollIntoView = () => undefined
+if (!window.matchMedia) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    }),
+  })
+}
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {

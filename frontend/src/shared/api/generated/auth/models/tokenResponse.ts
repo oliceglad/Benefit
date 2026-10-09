@@ -4,11 +4,18 @@
  * Benefit Auth
  * OpenAPI spec version: 0.1.0
  */
+import type { TokenResponseDelivery } from './tokenResponseDelivery';
 
+/**
+ * В режиме cookie токены в теле не возвращаются (они в HttpOnly-cookie),
+ * вместо них — ``csrf_token`` для заголовка ``X-CSRF-Token``.
+ */
 export interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
+  access_token: string | null;
+  refresh_token: string | null;
   token_type?: 'Bearer';
   expires_in: number;
   refresh_expires_in: number;
+  delivery?: TokenResponseDelivery;
+  csrf_token?: string | null;
 }

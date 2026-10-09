@@ -22,6 +22,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
+## IMask / react-imask
+
+Copyright (c) 2016 uNmAnNeR
+
+Licensed under the MIT License. The complete license text is distributed with
+the `react-imask` and `imask` packages. Benefit uses it for cursor-safe phone
+formatting, paste and editing behavior.
+
 ## shadcn-admin
 
 Copyright (c) 2024 Sat Naing

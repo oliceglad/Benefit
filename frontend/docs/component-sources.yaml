@@ -24,6 +24,15 @@ sources:
       - source_path: apps/v4/registry/bases/radix/ui/input-otp.tsx
         local_path: src/shared/ui/input-otp.tsx
         changes: Adapted spacing and Benefit focus tokens; uses input-otp 1.4.2.
+      - source_path: apps/v4/registry/bases/radix/ui/alert-dialog.tsx
+        local_path: src/shared/ui/alert-dialog.tsx
+        changes: Adapted aliases, overlay and responsive Benefit dialog styling.
+      - source_path: apps/v4/registry/bases/radix/ui/progress.tsx
+        local_path: src/shared/ui/progress.tsx
+        changes: Adapted aliases and Benefit progress colors.
+      - source_path: apps/v4/registry/bases/radix/ui/textarea.tsx
+        local_path: src/shared/ui/textarea.tsx
+        changes: Adapted aliases, focus tokens, minimum height and automatic growth without an inner scrollbar.
   - id: shadcn-admin
     repository: https://github.com/satnaing/shadcn-admin
     commit: e16c87f213a5ba5e45964e9b67c792105ec74d26
@@ -45,6 +54,27 @@ sources:
       - source_path: src/components/layout/header.tsx
         local_path: src/app/layouts/candidate-layout.tsx
         changes: Header reference; combined into a smaller responsive Benefit shell.
+      - source_path: src/components/ui/select.tsx
+        local_path: src/shared/ui/select.tsx
+        changes: Adapted aliases, responsive control sizing, Benefit focus styles and popover width; wrapped by the local SelectField adapter.
+      - source_path: src/components/ui/checkbox.tsx
+        local_path: src/shared/ui/checkbox.tsx
+        changes: Adapted aliases, sizing and Benefit focus/checked states.
+      - source_path: src/components/ui/collapsible.tsx
+        local_path: src/shared/ui/collapsible.tsx
+        changes: Adapted aliases and used as the accessible base for repeatable profile record cards.
+      - source_path: src/components/ui/table.tsx
+        local_path: src/shared/ui/table.tsx
+        changes: Adapted aliases, Benefit tokens and responsive row layout for resume import review without horizontal mobile scrolling.
+      - source_path: src/components/ui/dropdown-menu.tsx
+        local_path: src/shared/ui/dropdown-menu.tsx
+        changes: Adapted aliases, Benefit focus styles and touch targets for the accessible candidate account menu.
+      - source_path: src/hooks/use-mobile.tsx
+        local_path: src/shared/lib/use-desktop-layout.ts
+        changes: Adapted useSyncExternalStore media-query pattern to the existing lg desktop breakpoint without duplicating mounted forms.
+      - source_path: src/components/data-table/faceted-filter.tsx
+        local_path: src/features/candidate-profile/ui/searchable-multi-select.tsx
+        changes: Composition reference for searchable multi-selection; adapted to native listbox semantics, Benefit chips, selection limits and profile form state without table dependencies.
   - id: tremor
     repository: https://github.com/tremorlabs/tremor
     commit: ca4d588f47820ff3d514d37fa4ee08a4222dec11

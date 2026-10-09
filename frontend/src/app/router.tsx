@@ -7,34 +7,46 @@ import {
 } from '@tanstack/react-router'
 
 import { CandidateLayout } from '@/app/layouts/candidate-layout'
+import { restoreCandidateSession } from '@/features/auth/api/auth'
 import { LoginPage } from '@/features/auth/ui/login-page'
 import { RegisterPage } from '@/features/auth/ui/register-page'
 import { VerifyEmailPage } from '@/features/auth/ui/verify-email-page'
+import { isProfileSectionId } from '@/features/candidate-profile/model/profile-sections'
 import { ProfilePage } from '@/features/candidate-profile/ui/profile-page'
-import { session } from '@/shared/session/session'
+import { AssessmentAttemptPage } from '@/features/candidate-profile/ui/assessment-attempt-page'
+import { AssessmentPage } from '@/features/candidate-profile/ui/assessment-page'
 
 const rootRoute = createRootRoute({ component: Outlet })
+
+async function hasCandidateSession(ignoreRestoreError = false): Promise<boolean> {
+  try {
+    return await restoreCandidateSession()
+  } catch (error) {
+    if (ignoreRestoreError) return false
+    throw error
+  }
+}
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: () => {
-    // TanStack Router uses redirect response objects for control flow.
+  beforeLoad: async () => {
+    if (await hasCandidateSession(true)) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
+    }
     // eslint-disable-next-line @typescript-eslint/only-throw-error
-    throw redirect({
-      to: session.getSnapshot().tokens ? '/profile' : '/login',
-      replace: true,
-    })
+    throw redirect({ to: '/login', replace: true })
   },
 })
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
-  beforeLoad: () => {
-    if (session.getSnapshot().tokens) {
+  beforeLoad: async () => {
+    if (await hasCandidateSession(true)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ to: '/profile', replace: true })
+      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
     }
   },
   component: LoginPage,
@@ -43,10 +55,10 @@ const loginRoute = createRoute({
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
-  beforeLoad: () => {
-    if (session.getSnapshot().tokens) {
+  beforeLoad: async () => {
+    if (await hasCandidateSession(true)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ to: '/profile', replace: true })
+      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
     }
   },
   component: RegisterPage,
@@ -55,10 +67,10 @@ const registerRoute = createRoute({
 const verifyEmailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/verify-email',
-  beforeLoad: () => {
-    if (session.getSnapshot().tokens) {
+  beforeLoad: async () => {
+    if (await hasCandidateSession(true)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ to: '/profile', replace: true })
+      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
     }
   },
   component: VerifyEmailPage,
@@ -67,8 +79,8 @@ const verifyEmailRoute = createRoute({
 const candidateLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: '_candidate',
-  beforeLoad: () => {
-    if (!session.getSnapshot().tokens) {
+  beforeLoad: async () => {
+    if (!(await hasCandidateSession())) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({ to: '/login', replace: true })
     }
@@ -79,7 +91,22 @@ const candidateLayoutRoute = createRoute({
 const profileRoute = createRoute({
   getParentRoute: () => candidateLayoutRoute,
   path: '/profile',
+  validateSearch: (search: Record<string, unknown>) => ({
+    section: isProfileSectionId(search.section) ? search.section : undefined,
+  }),
   component: ProfilePage,
+})
+
+const assessmentsRoute = createRoute({
+  getParentRoute: () => candidateLayoutRoute,
+  path: '/assessments',
+  component: AssessmentPage,
+})
+
+const assessmentAttemptRoute = createRoute({
+  getParentRoute: () => candidateLayoutRoute,
+  path: '/assessments/attempts/$attemptId',
+  component: AssessmentAttemptPage,
 })
 
 const routeTree = rootRoute.addChildren([
@@ -87,13 +114,14 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
   verifyEmailRoute,
-  candidateLayoutRoute.addChildren([profileRoute]),
+  candidateLayoutRoute.addChildren([profileRoute, assessmentsRoute, assessmentAttemptRoute]),
 ])
 
 export const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
+  scrollRestoration: true,
 })
 
 declare module '@tanstack/react-router' {

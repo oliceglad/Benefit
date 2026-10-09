@@ -1,0 +1,3563 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Benefit Assessments",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/assessments/tests": {
+      "get": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "List Tests",
+        "description": "Каталог тестов (без задач).",
+        "operationId": "list_tests_api_v1_assessments_tests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssessmentInfo"
+                  },
+                  "type": "array",
+                  "title": "Response List Tests Api V1 Assessments Tests Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assessments/survey": {
+      "get": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "Survey",
+        "description": "Варианты опроса и предзаполнение из профиля кандидата.",
+        "operationId": "survey_api_v1_assessments_survey_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurveyOptions"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assessments/status": {
+      "get": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "Assessment Status",
+        "description": "Текущая подтверждённая категория, активная попытка, ограничения.",
+        "operationId": "assessment_status_api_v1_assessments_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assessments/attempts": {
+      "get": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "History",
+        "description": "История опросов и тестов.",
+        "operationId": "history_api_v1_assessments_attempts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AttemptSummary"
+                  },
+                  "type": "array",
+                  "title": "Response History Api V1 Assessments Attempts Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "Start Attempt",
+        "description": "Начать тест по ответам опроса (специализация + предполагаемый грейд).",
+        "operationId": "start_attempt_api_v1_assessments_attempts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SurveyAnswers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assessments/attempts/{attempt_id}": {
+      "get": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "Get Attempt",
+        "operationId": "get_attempt_api_v1_assessments_attempts__attempt_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attempt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attempt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/attempts/{attempt_id}/current-task": {
+      "get": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "Current Task",
+        "description": "Текущая задача. Первый запрос запускает её таймер.",
+        "operationId": "current_task_api_v1_assessments_attempts__attempt_id__current_task_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attempt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attempt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/attempts/{attempt_id}/answers": {
+      "post": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "Answer",
+        "description": "Ответ на текущую задачу (``answer: null`` — пропустить).",
+        "operationId": "answer_api_v1_assessments_attempts__attempt_id__answers_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attempt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attempt Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/attempts/{attempt_id}/finish": {
+      "post": {
+        "tags": [
+          "assessments"
+        ],
+        "summary": "Finish",
+        "description": "Досрочно завершить тест: оставшиеся задачи получают 0 баллов.",
+        "operationId": "finish_api_v1_assessments_attempts__attempt_id__finish_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "attempt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attempt Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/admin/tests": {
+      "get": {
+        "tags": [
+          "assessments: администрирование"
+        ],
+        "summary": "List Tests",
+        "operationId": "list_tests_api_v1_assessments_admin_tests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminTestSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Tests Api V1 Assessments Admin Tests Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "assessments: администрирование"
+        ],
+        "summary": "Create Test",
+        "operationId": "create_test_api_v1_assessments_admin_tests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assessments/admin/tests/{assessment_id}": {
+      "get": {
+        "tags": [
+          "assessments: администрирование"
+        ],
+        "summary": "Get Test",
+        "operationId": "get_test_api_v1_assessments_admin_tests__assessment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "assessments: администрирование"
+        ],
+        "summary": "Replace Test",
+        "description": "Заменяет тест целиком. Задачи сопоставляются по ``key``; убранные\nзадачи деактивируются (их используют прошлые попытки).",
+        "operationId": "replace_test_api_v1_assessments_admin_tests__assessment_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "assessments: администрирование"
+        ],
+        "summary": "Set Active",
+        "description": "Опубликовать или снять тест (кандидаты видят только активные).",
+        "operationId": "set_active_api_v1_assessments_admin_tests__assessment_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActiveUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/admin/import": {
+      "post": {
+        "tags": [
+          "assessments: администрирование"
+        ],
+        "summary": "Import Pack",
+        "operationId": "import_pack_api_v1_assessments_admin_import_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "skip_existing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Не изменять тесты, которые уже есть",
+              "default": false,
+              "title": "Skip Existing"
+            },
+            "description": "Не изменять тесты, которые уже есть"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestPack"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/admin/export": {
+      "get": {
+        "tags": [
+          "assessments: администрирование"
+        ],
+        "summary": "Export Pack",
+        "description": "Выгрузка тестов с ответами (для резервной копии или переноса).",
+        "operationId": "export_pack_api_v1_assessments_admin_export_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestPack"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/employer/tests": {
+      "get": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "List Tests",
+        "operationId": "list_tests_api_v1_assessments_employer_tests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EmployerTestSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Tests Api V1 Assessments Employer Tests Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Create Test",
+        "description": "Свой тест: задачи с вариантами, баллами и лимитом времени.",
+        "operationId": "create_test_api_v1_assessments_employer_tests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployerTestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assessments/employer/tests/{test_id}": {
+      "get": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Get Test",
+        "operationId": "get_test_api_v1_assessments_employer_tests__test_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "test_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Test Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Replace Test",
+        "operationId": "replace_test_api_v1_assessments_employer_tests__test_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "test_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Test Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployerTestIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Archive Test",
+        "description": "``is_active: false`` — в архив (новым кандидатам не отправить).",
+        "operationId": "archive_test_api_v1_assessments_employer_tests__test_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "test_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Test Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActiveUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerTestDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/employer/tests/{test_id}/assignments": {
+      "post": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Assign",
+        "description": "Отправить тест кандидату в переписку (кандидат получит уведомление).",
+        "operationId": "assign_api_v1_assessments_employer_tests__test_id__assignments_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "test_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Test Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerAssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/employer/assignments": {
+      "get": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Sent Assignments",
+        "operationId": "sent_assignments_api_v1_assessments_employer_assignments_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "test_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Test Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AssignmentResponse"
+                  },
+                  "title": "Response Sent Assignments Api V1 Assessments Employer Assignments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/employer/assignments/{assignment_id}": {
+      "get": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Assignment Result",
+        "description": "Результат с ответами кандидата, баллами и временем по каждой задаче.",
+        "operationId": "assignment_result_api_v1_assessments_employer_assignments__assignment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerAssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/employer/assignments/{assignment_id}/cancel": {
+      "post": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Cancel Assignment",
+        "operationId": "cancel_assignment_api_v1_assessments_employer_assignments__assignment_id__cancel_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployerAssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/assignments": {
+      "get": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "My Assignments",
+        "description": "Тесты, присланные работодателями.",
+        "operationId": "my_assignments_api_v1_assessments_assignments_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AssignmentResponse"
+                  },
+                  "type": "array",
+                  "title": "Response My Assignments Api V1 Assessments Assignments Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assessments/assignments/{assignment_id}": {
+      "get": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "My Assignment",
+        "operationId": "my_assignment_api_v1_assessments_assignments__assignment_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/assignments/{assignment_id}/start": {
+      "post": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Start",
+        "description": "Начать тест: дальше ``/attempts/{id}/current-task`` и ``/answers``.",
+        "operationId": "start_api_v1_assessments_assignments__assignment_id__start_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assessments/assignments/{assignment_id}/decline": {
+      "post": {
+        "tags": [
+          "assessments: тесты работодателей"
+        ],
+        "summary": "Decline",
+        "operationId": "decline_api_v1_assessments_assignments__assignment_id__decline_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "assignment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Assignment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/candidates/{user_id}/status": {
+      "get": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Candidate Status",
+        "operationId": "candidate_status_internal_v1_candidates__user_id__status_get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActiveUpdate": {
+        "properties": {
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_active"
+        ],
+        "title": "ActiveUpdate"
+      },
+      "AdminTestDetail": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+            "title": "Slug"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Description",
+            "default": ""
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "maximum": 14400.0,
+            "minimum": 60.0,
+            "title": "Time Limit Seconds"
+          },
+          "tasks_per_attempt": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Tasks Per Attempt"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskIn"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Tasks"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slug",
+          "title",
+          "specialization",
+          "grade",
+          "time_limit_seconds",
+          "tasks_per_attempt",
+          "tasks",
+          "id",
+          "updated_at",
+          "updated_by"
+        ],
+        "title": "AdminTestDetail"
+      },
+      "AdminTestSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "tasks_total": {
+            "type": "integer",
+            "title": "Tasks Total"
+          },
+          "tasks_active": {
+            "type": "integer",
+            "title": "Tasks Active"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "specialization",
+          "grade",
+          "is_active",
+          "tasks_total",
+          "tasks_active",
+          "attempts",
+          "updated_at",
+          "updated_by"
+        ],
+        "title": "AdminTestSummary"
+      },
+      "AnswerRequest": {
+        "properties": {
+          "attempt_task_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Task Id"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attempt_task_id"
+        ],
+        "title": "AnswerRequest"
+      },
+      "AnswerResponse": {
+        "properties": {
+          "time_spent_seconds": {
+            "type": "number",
+            "title": "Time Spent Seconds"
+          },
+          "timed_out": {
+            "type": "boolean",
+            "title": "Timed Out"
+          },
+          "finished": {
+            "type": "boolean",
+            "title": "Finished"
+          },
+          "attempt": {
+            "$ref": "#/components/schemas/AttemptResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time_spent_seconds",
+          "timed_out",
+          "finished",
+          "attempt"
+        ],
+        "title": "AnswerResponse"
+      },
+      "AnswerReview": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "options": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "correct": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Correct"
+          },
+          "answer": {
+            "title": "Answer"
+          },
+          "is_correct": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Correct"
+          },
+          "points_awarded": {
+            "type": "number",
+            "title": "Points Awarded"
+          },
+          "max_points": {
+            "type": "integer",
+            "title": "Max Points"
+          },
+          "time_spent_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Spent Seconds"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds"
+          },
+          "timed_out": {
+            "type": "boolean",
+            "title": "Timed Out"
+          },
+          "skipped": {
+            "type": "boolean",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "kind",
+          "prompt",
+          "code",
+          "options",
+          "correct",
+          "answer",
+          "is_correct",
+          "points_awarded",
+          "max_points",
+          "time_spent_seconds",
+          "time_limit_seconds",
+          "timed_out",
+          "skipped"
+        ],
+        "title": "AnswerReview",
+        "description": "Задача с ответом кандидата — для работодателя (автора теста)."
+      },
+      "AssessmentInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds"
+          },
+          "tasks_per_attempt": {
+            "type": "integer",
+            "title": "Tasks Per Attempt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "description",
+          "specialization",
+          "grade",
+          "time_limit_seconds",
+          "tasks_per_attempt"
+        ],
+        "title": "AssessmentInfo"
+      },
+      "AssessmentStatus": {
+        "properties": {
+          "verified": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerifiedCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "active_attempt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Attempt Id"
+          },
+          "cooldowns": {
+            "items": {
+              "$ref": "#/components/schemas/CooldownInfo"
+            },
+            "type": "array",
+            "title": "Cooldowns"
+          },
+          "attempts_total": {
+            "type": "integer",
+            "title": "Attempts Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verified",
+          "active_attempt_id",
+          "cooldowns",
+          "attempts_total"
+        ],
+        "title": "AssessmentStatus",
+        "description": "Текущий статус кандидата: подтверждённая категория, ограничения."
+      },
+      "AssignmentCreate": {
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Conversation Id"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Due At"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "conversation_id",
+          "due_at"
+        ],
+        "title": "AssignmentCreate"
+      },
+      "AssignmentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssignmentStatus"
+          },
+          "test": {
+            "$ref": "#/components/schemas/AssignmentTest"
+          },
+          "employer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Employer Id"
+          },
+          "candidate_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Candidate Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Conversation Id"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "vacancy_title": {
+            "type": "string",
+            "title": "Vacancy Title"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Due At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "test",
+          "employer_id",
+          "candidate_id",
+          "conversation_id",
+          "company_name",
+          "vacancy_title",
+          "message",
+          "due_at",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "result"
+        ],
+        "title": "AssignmentResponse",
+        "description": "Тест, отправленный кандидату (вид кандидата)."
+      },
+      "AssignmentResult": {
+        "properties": {
+          "attempt_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "max_score": {
+            "type": "integer",
+            "title": "Max Score"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attempt_id",
+          "status",
+          "score",
+          "max_score",
+          "percent",
+          "duration_seconds"
+        ],
+        "title": "AssignmentResult"
+      },
+      "AssignmentStatus": {
+        "type": "string",
+        "enum": [
+          "assigned",
+          "in_progress",
+          "completed",
+          "declined",
+          "cancelled",
+          "expired"
+        ],
+        "title": "AssignmentStatus"
+      },
+      "AssignmentTest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds"
+          },
+          "tasks_per_attempt": {
+            "type": "integer",
+            "title": "Tasks Per Attempt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "description",
+          "specialization",
+          "grade",
+          "time_limit_seconds",
+          "tasks_per_attempt"
+        ],
+        "title": "AssignmentTest"
+      },
+      "AttemptResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "assessment": {
+            "$ref": "#/components/schemas/AssessmentInfo"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AttemptStatus"
+          },
+          "survey": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Survey"
+          },
+          "claimed_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "deadline_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Deadline At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "time_left_seconds": {
+            "type": "number",
+            "title": "Time Left Seconds"
+          },
+          "total_tasks": {
+            "type": "integer",
+            "title": "Total Tasks"
+          },
+          "answered_tasks": {
+            "type": "integer",
+            "title": "Answered Tasks"
+          },
+          "max_score": {
+            "type": "integer",
+            "title": "Max Score"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttemptResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "assessment",
+          "status",
+          "survey",
+          "claimed_grade",
+          "started_at",
+          "deadline_at",
+          "finished_at",
+          "time_left_seconds",
+          "total_tasks",
+          "answered_tasks",
+          "max_score",
+          "result"
+        ],
+        "title": "AttemptResponse"
+      },
+      "AttemptResult": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "max_score": {
+            "type": "integer",
+            "title": "Max Score"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "confirmed_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "title": "Duration Seconds"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskResult"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/SkillScore"
+            },
+            "type": "array",
+            "title": "Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "max_score",
+          "percent",
+          "outcome",
+          "target_grade",
+          "confirmed_grade",
+          "message",
+          "duration_seconds",
+          "tasks",
+          "skills"
+        ],
+        "title": "AttemptResult"
+      },
+      "AttemptStatus": {
+        "type": "string",
+        "enum": [
+          "in_progress",
+          "completed",
+          "expired"
+        ],
+        "title": "AttemptStatus"
+      },
+      "AttemptSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "target_grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/AttemptStatus"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Outcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmed_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "specialization",
+          "target_grade",
+          "industry",
+          "status",
+          "started_at",
+          "finished_at",
+          "duration_seconds",
+          "percent",
+          "outcome",
+          "confirmed_grade"
+        ],
+        "title": "AttemptSummary"
+      },
+      "CooldownInfo": {
+        "properties": {
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "available_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Available At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "specialization",
+          "available_at"
+        ],
+        "title": "CooldownInfo"
+      },
+      "EmployerAssignmentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssignmentStatus"
+          },
+          "test": {
+            "$ref": "#/components/schemas/AssignmentTest"
+          },
+          "employer_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Employer Id"
+          },
+          "candidate_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Candidate Id"
+          },
+          "conversation_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Conversation Id"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "vacancy_title": {
+            "type": "string",
+            "title": "Vacancy Title"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Due At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerReview"
+            },
+            "type": "array",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "test",
+          "employer_id",
+          "candidate_id",
+          "conversation_id",
+          "company_name",
+          "vacancy_title",
+          "message",
+          "due_at",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "result",
+          "answers"
+        ],
+        "title": "EmployerAssignmentResponse"
+      },
+      "EmployerTestDetail": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Description",
+            "default": ""
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "maximum": 14400.0,
+            "minimum": 60.0,
+            "title": "Time Limit Seconds"
+          },
+          "tasks_per_attempt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasks Per Attempt"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskIn"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Tasks"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "specialization",
+          "grade",
+          "time_limit_seconds",
+          "tasks",
+          "id",
+          "is_active",
+          "updated_at"
+        ],
+        "title": "EmployerTestDetail"
+      },
+      "EmployerTestIn": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Description",
+            "default": ""
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "maximum": 14400.0,
+            "minimum": 60.0,
+            "title": "Time Limit Seconds"
+          },
+          "tasks_per_attempt": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasks Per Attempt"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskIn"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Tasks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "specialization",
+          "grade",
+          "time_limit_seconds",
+          "tasks"
+        ],
+        "title": "EmployerTestIn",
+        "description": "Тест работодателя. По умолчанию в попытку входят все задачи."
+      },
+      "EmployerTestSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "tasks_total": {
+            "type": "integer",
+            "title": "Tasks Total"
+          },
+          "tasks_per_attempt": {
+            "type": "integer",
+            "title": "Tasks Per Attempt"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds"
+          },
+          "assignments": {
+            "type": "integer",
+            "title": "Assignments"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "specialization",
+          "grade",
+          "is_active",
+          "tasks_total",
+          "tasks_per_attempt",
+          "time_limit_seconds",
+          "assignments",
+          "updated_at"
+        ],
+        "title": "EmployerTestSummary"
+      },
+      "Grade": {
+        "type": "string",
+        "enum": [
+          "intern",
+          "junior",
+          "middle",
+          "senior",
+          "lead"
+        ],
+        "title": "Grade"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ITRole": {
+        "type": "string",
+        "enum": [
+          "backend",
+          "frontend",
+          "fullstack",
+          "mobile",
+          "devops",
+          "qa",
+          "qa_automation",
+          "data_scientist",
+          "ml_engineer",
+          "data_engineer",
+          "data_analyst",
+          "system_analyst",
+          "business_analyst",
+          "product_manager",
+          "project_manager",
+          "designer",
+          "gamedev",
+          "security",
+          "embedded",
+          "dba",
+          "team_lead",
+          "architect"
+        ],
+        "title": "ITRole"
+      },
+      "ImportReport": {
+        "properties": {
+          "created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created"
+          },
+          "updated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "updated",
+          "skipped"
+        ],
+        "title": "ImportReport"
+      },
+      "Industry": {
+        "type": "string",
+        "enum": [
+          "fintech",
+          "ecommerce",
+          "govtech",
+          "telecom",
+          "healthtech",
+          "edtech",
+          "gamedev",
+          "media",
+          "logistics",
+          "industry",
+          "energy",
+          "cybersecurity",
+          "ai",
+          "travel",
+          "real_estate",
+          "outsource",
+          "other"
+        ],
+        "title": "Industry"
+      },
+      "Option": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "Option"
+      },
+      "Outcome": {
+        "type": "string",
+        "enum": [
+          "not_confirmed",
+          "confirmed",
+          "exceeded"
+        ],
+        "title": "Outcome"
+      },
+      "SkillScore": {
+        "properties": {
+          "skill": {
+            "type": "string",
+            "title": "Skill"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points"
+          },
+          "max_points": {
+            "type": "integer",
+            "title": "Max Points"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill",
+          "points",
+          "max_points",
+          "percent"
+        ],
+        "title": "SkillScore"
+      },
+      "SpecializationOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/Grade"
+            },
+            "type": "array",
+            "title": "Grades"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "grades"
+        ],
+        "title": "SpecializationOption"
+      },
+      "SurveyAnswers": {
+        "properties": {
+          "industry": {
+            "$ref": "#/components/schemas/Industry"
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "target_grade": {
+            "$ref": "#/components/schemas/Grade",
+            "description": "Грейд, который кандидат подтверждает"
+          },
+          "years_of_experience": {
+            "type": "number",
+            "maximum": 50.0,
+            "minimum": 0.0,
+            "title": "Years Of Experience"
+          },
+          "skills": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Skills",
+            "description": "Основной стек: задачи подбираются в первую очередь по нему"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "industry",
+          "specialization",
+          "target_grade",
+          "years_of_experience"
+        ],
+        "title": "SurveyAnswers",
+        "description": "Опрос перед тестом: отрасль, специализация, предполагаемый грейд."
+      },
+      "SurveyOptions": {
+        "properties": {
+          "industries": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "type": "array",
+            "title": "Industries"
+          },
+          "specializations": {
+            "items": {
+              "$ref": "#/components/schemas/SpecializationOption"
+            },
+            "type": "array",
+            "title": "Specializations"
+          },
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "type": "array",
+            "title": "Grades"
+          },
+          "prefill": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SurveyPrefill"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cooldowns": {
+            "items": {
+              "$ref": "#/components/schemas/CooldownInfo"
+            },
+            "type": "array",
+            "title": "Cooldowns"
+          },
+          "pass_percent": {
+            "type": "number",
+            "title": "Pass Percent"
+          },
+          "exceed_percent": {
+            "type": "number",
+            "title": "Exceed Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "industries",
+          "specializations",
+          "grades",
+          "prefill",
+          "cooldowns",
+          "pass_percent",
+          "exceed_percent"
+        ],
+        "title": "SurveyOptions"
+      },
+      "SurveyPrefill": {
+        "properties": {
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "specialization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ITRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claimed_grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "years_of_experience": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years Of Experience"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
+          }
+        },
+        "type": "object",
+        "required": [
+          "industry",
+          "specialization",
+          "claimed_grade",
+          "years_of_experience",
+          "skills"
+        ],
+        "title": "SurveyPrefill"
+      },
+      "TaskIn": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+            "title": "Key",
+            "description": "Стабильный ключ задачи внутри теста"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Prompt"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOptionIn"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Options"
+          },
+          "correct": {
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Correct"
+          },
+          "points": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Points"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 10.0,
+            "title": "Time Limit Seconds"
+          },
+          "skills": {
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Skills"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "prompt",
+          "correct",
+          "points",
+          "time_limit_seconds"
+        ],
+        "title": "TaskIn"
+      },
+      "TaskKind": {
+        "type": "string",
+        "enum": [
+          "single_choice",
+          "multiple_choice",
+          "text"
+        ],
+        "title": "TaskKind"
+      },
+      "TaskOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "TaskOption"
+      },
+      "TaskOptionIn": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{1,8}$",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "TaskOptionIn"
+      },
+      "TaskResult": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "max_points": {
+            "type": "integer",
+            "title": "Max Points"
+          },
+          "points_awarded": {
+            "type": "number",
+            "title": "Points Awarded"
+          },
+          "is_correct": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Correct"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds"
+          },
+          "time_spent_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Spent Seconds"
+          },
+          "timed_out": {
+            "type": "boolean",
+            "title": "Timed Out"
+          },
+          "skipped": {
+            "type": "boolean",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "prompt",
+          "kind",
+          "skills",
+          "max_points",
+          "points_awarded",
+          "is_correct",
+          "time_limit_seconds",
+          "time_spent_seconds",
+          "timed_out",
+          "skipped"
+        ],
+        "title": "TaskResult"
+      },
+      "TaskView": {
+        "properties": {
+          "attempt_task_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Task Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TaskKind"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "title": "Time Limit Seconds"
+          },
+          "time_left_seconds": {
+            "type": "number",
+            "title": "Time Left Seconds"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attempt_task_id",
+          "position",
+          "total",
+          "kind",
+          "prompt",
+          "code",
+          "options",
+          "points",
+          "skills",
+          "time_limit_seconds",
+          "time_left_seconds",
+          "started_at"
+        ],
+        "title": "TaskView",
+        "description": "Текущая задача. Правильный ответ не передаётся."
+      },
+      "TestIn": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+            "title": "Slug"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Description",
+            "default": ""
+          },
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "time_limit_seconds": {
+            "type": "integer",
+            "maximum": 14400.0,
+            "minimum": 60.0,
+            "title": "Time Limit Seconds"
+          },
+          "tasks_per_attempt": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Tasks Per Attempt"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskIn"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Tasks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "slug",
+          "title",
+          "specialization",
+          "grade",
+          "time_limit_seconds",
+          "tasks_per_attempt",
+          "tasks"
+        ],
+        "title": "TestIn",
+        "description": "Тест целиком: метаданные и банк задач."
+      },
+      "TestPack": {
+        "properties": {
+          "format_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Format Version",
+            "default": 1
+          },
+          "tests": {
+            "items": {
+              "$ref": "#/components/schemas/TestIn"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Tests"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tests"
+        ],
+        "title": "TestPack"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerifiedCategory": {
+        "properties": {
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Verified At"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Valid Until"
+          },
+          "attempt_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Id"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "specialization",
+          "grade",
+          "verified_at",
+          "valid_until",
+          "attempt_id",
+          "percent"
+        ],
+        "title": "VerifiedCategory"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

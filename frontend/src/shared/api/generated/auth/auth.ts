@@ -405,6 +405,8 @@ export const getVerifyEmailApiV1AuthVerifyEmailPostUrl = () => {
 
 /**
  * Подтверждение почты кодом из письма. Сразу выполняет вход.
+ *
+ * С заголовком ``X-Auth-Mode: cookie`` токены выставляются в cookie.
  * @summary Verify Email
  */
 export const verifyEmailApiV1AuthVerifyEmailPost = async (verifyEmailRequest: VerifyEmailRequest, options?: Parameters<typeof orvalFetch>[1]): Promise<verifyEmailApiV1AuthVerifyEmailPostResponse> => {
@@ -674,6 +676,7 @@ export const getLoginApiV1AuthLoginPostUrl = () => {
 }
 
 /**
+ * Вход. С заголовком ``X-Auth-Mode: cookie`` токены — в HttpOnly-cookie.
  * @summary Login
  */
 export const loginApiV1AuthLoginPost = async (loginRequest: LoginRequest, options?: Parameters<typeof orvalFetch>[1]): Promise<loginApiV1AuthLoginPostResponse> => {
@@ -809,9 +812,11 @@ export const getRefreshApiV1AuthRefreshPostUrl = () => {
 
 /**
  * Обмен refresh-токена на новую пару (старый refresh-токен отзывается).
+ *
+ * Токен берётся из тела или из cookie ``benefit_refresh``.
  * @summary Refresh
  */
-export const refreshApiV1AuthRefreshPost = async (refreshRequest: RefreshRequest, options?: Parameters<typeof orvalFetch>[1]): Promise<refreshApiV1AuthRefreshPostResponse> => {
+export const refreshApiV1AuthRefreshPost = async (refreshRequestNull?: RefreshRequest | null, options?: Parameters<typeof orvalFetch>[1]): Promise<refreshApiV1AuthRefreshPostResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -832,7 +837,7 @@ return orvalFetch<refreshApiV1AuthRefreshPostResponse>(getRefreshApiV1AuthRefres
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(refreshRequest)
+    body: JSON.stringify(refreshRequestNull)
   }
 );}
 
@@ -840,23 +845,23 @@ return orvalFetch<refreshApiV1AuthRefreshPostResponse>(getRefreshApiV1AuthRefres
 
 
 
-export const getRefreshApiV1AuthRefreshPostQueryKey = (refreshRequest?: BodyType<RefreshRequest>,) => {
+export const getRefreshApiV1AuthRefreshPostQueryKey = (refreshRequestNull?: BodyType<RefreshRequest | null>,) => {
     return [
-    'POST', `/api/v1/auth/refresh`, refreshRequest
+    'POST', `/api/v1/auth/refresh`, refreshRequestNull
     ] as const;
     }
 
 
-export const getRefreshApiV1AuthRefreshPostQueryOptions = <TData = Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError = ErrorType<HTTPValidationError>>(refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
+export const getRefreshApiV1AuthRefreshPostQueryOptions = <TData = Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError = ErrorType<HTTPValidationError>>(refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getRefreshApiV1AuthRefreshPostQueryKey(refreshRequest);
+  const queryKey =  queryOptions?.queryKey ?? getRefreshApiV1AuthRefreshPostQueryKey(refreshRequestNull);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>> = ({ signal }) => refreshApiV1AuthRefreshPost(refreshRequest, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>> = ({ signal }) => refreshApiV1AuthRefreshPost(refreshRequestNull, { signal, ...requestOptions });
 
 
 
@@ -870,7 +875,7 @@ export type RefreshApiV1AuthRefreshPostQueryError = ErrorType<HTTPValidationErro
 
 
 export function useRefreshApiV1AuthRefreshPost<TData = Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>> & Pick<
+ refreshRequestNull: undefined |  BodyType<RefreshRequest | null>, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>,
           TError,
@@ -880,7 +885,7 @@ export function useRefreshApiV1AuthRefreshPost<TData = Awaited<ReturnType<typeof
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useRefreshApiV1AuthRefreshPost<TData = Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>> & Pick<
+ refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>,
           TError,
@@ -890,7 +895,7 @@ export function useRefreshApiV1AuthRefreshPost<TData = Awaited<ReturnType<typeof
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useRefreshApiV1AuthRefreshPost<TData = Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
+ refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -898,11 +903,11 @@ export function useRefreshApiV1AuthRefreshPost<TData = Awaited<ReturnType<typeof
  */
 
 export function useRefreshApiV1AuthRefreshPost<TData = Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
+ refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof refreshApiV1AuthRefreshPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getRefreshApiV1AuthRefreshPostQueryOptions(refreshRequest,options)
+  const queryOptions = getRefreshApiV1AuthRefreshPostQueryOptions(refreshRequestNull,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -943,9 +948,10 @@ export const getLogoutApiV1AuthLogoutPostUrl = () => {
 }
 
 /**
+ * Отзывает refresh-токен (из тела или cookie) и удаляет cookie.
  * @summary Logout
  */
-export const logoutApiV1AuthLogoutPost = async (refreshRequest: RefreshRequest, options?: Parameters<typeof orvalFetch>[1]): Promise<logoutApiV1AuthLogoutPostResponse> => {
+export const logoutApiV1AuthLogoutPost = async (refreshRequestNull?: RefreshRequest | null, options?: Parameters<typeof orvalFetch>[1]): Promise<logoutApiV1AuthLogoutPostResponse> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -966,7 +972,7 @@ return orvalFetch<logoutApiV1AuthLogoutPostResponse>(getLogoutApiV1AuthLogoutPos
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(refreshRequest)
+    body: JSON.stringify(refreshRequestNull)
   }
 );}
 
@@ -974,23 +980,23 @@ return orvalFetch<logoutApiV1AuthLogoutPostResponse>(getLogoutApiV1AuthLogoutPos
 
 
 
-export const getLogoutApiV1AuthLogoutPostQueryKey = (refreshRequest?: BodyType<RefreshRequest>,) => {
+export const getLogoutApiV1AuthLogoutPostQueryKey = (refreshRequestNull?: BodyType<RefreshRequest | null>,) => {
     return [
-    'POST', `/api/v1/auth/logout`, refreshRequest
+    'POST', `/api/v1/auth/logout`, refreshRequestNull
     ] as const;
     }
 
 
-export const getLogoutApiV1AuthLogoutPostQueryOptions = <TData = Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError = ErrorType<HTTPValidationError>>(refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
+export const getLogoutApiV1AuthLogoutPostQueryOptions = <TData = Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError = ErrorType<HTTPValidationError>>(refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getLogoutApiV1AuthLogoutPostQueryKey(refreshRequest);
+  const queryKey =  queryOptions?.queryKey ?? getLogoutApiV1AuthLogoutPostQueryKey(refreshRequestNull);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>> = ({ signal }) => logoutApiV1AuthLogoutPost(refreshRequest, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>> = ({ signal }) => logoutApiV1AuthLogoutPost(refreshRequestNull, { signal, ...requestOptions });
 
 
 
@@ -1004,7 +1010,7 @@ export type LogoutApiV1AuthLogoutPostQueryError = ErrorType<HTTPValidationError>
 
 
 export function useLogoutApiV1AuthLogoutPost<TData = Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>> & Pick<
+ refreshRequestNull: undefined |  BodyType<RefreshRequest | null>, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
           TError,
@@ -1014,7 +1020,7 @@ export function useLogoutApiV1AuthLogoutPost<TData = Awaited<ReturnType<typeof l
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useLogoutApiV1AuthLogoutPost<TData = Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>> & Pick<
+ refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>,
           TError,
@@ -1024,7 +1030,7 @@ export function useLogoutApiV1AuthLogoutPost<TData = Awaited<ReturnType<typeof l
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useLogoutApiV1AuthLogoutPost<TData = Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
+ refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -1032,11 +1038,11 @@ export function useLogoutApiV1AuthLogoutPost<TData = Awaited<ReturnType<typeof l
  */
 
 export function useLogoutApiV1AuthLogoutPost<TData = Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError = ErrorType<HTTPValidationError>>(
- refreshRequest: BodyType<RefreshRequest>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
+ refreshRequestNull?: BodyType<RefreshRequest | null>, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof logoutApiV1AuthLogoutPost>>, TError, TData>>, request?: SecondParameter<typeof orvalFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getLogoutApiV1AuthLogoutPostQueryOptions(refreshRequest,options)
+  const queryOptions = getLogoutApiV1AuthLogoutPostQueryOptions(refreshRequestNull,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -1391,7 +1397,8 @@ export const getExchangeApiV1AuthOauthExchangePostUrl = () => {
 }
 
 /**
- * Обмен одноразового кода входа на пару токенов.
+ * Обмен одноразового кода входа на пару токенов
+ * (``X-Auth-Mode: cookie`` — в cookie).
  * @summary Exchange
  */
 export const exchangeApiV1AuthOauthExchangePost = async (oAuthExchangeRequest: OAuthExchangeRequest, options?: Parameters<typeof orvalFetch>[1]): Promise<exchangeApiV1AuthOauthExchangePostResponse> => {
