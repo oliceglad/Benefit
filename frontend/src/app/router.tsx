@@ -15,6 +15,10 @@ import { isProfileSectionId } from '@/features/candidate-profile/model/profile-s
 import { ProfilePage } from '@/features/candidate-profile/ui/profile-page'
 import { AssessmentAttemptPage } from '@/features/candidate-profile/ui/assessment-attempt-page'
 import { AssessmentPage } from '@/features/candidate-profile/ui/assessment-page'
+import { PrivacyPolicyPage } from '@/features/legal/ui/privacy-policy-page'
+import { PersonalDataConsentPage } from '@/features/legal/ui/personal-data-consent-page'
+import { PublicationConsentPage } from '@/features/legal/ui/publication-consent-page'
+import { TermsPage } from '@/features/legal/ui/terms-page'
 
 const rootRoute = createRootRoute({ component: Outlet })
 
@@ -76,6 +80,30 @@ const verifyEmailRoute = createRoute({
   component: VerifyEmailPage,
 })
 
+const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/privacy',
+  component: PrivacyPolicyPage,
+})
+
+const termsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/terms',
+  component: TermsPage,
+})
+
+const personalDataConsentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/legal/personal-data',
+  component: PersonalDataConsentPage,
+})
+
+const publicationConsentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/legal/publication',
+  component: PublicationConsentPage,
+})
+
 const candidateLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: '_candidate',
@@ -114,6 +142,10 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
   verifyEmailRoute,
+  privacyRoute,
+  termsRoute,
+  personalDataConsentRoute,
+  publicationConsentRoute,
   candidateLayoutRoute.addChildren([profileRoute, assessmentsRoute, assessmentAttemptRoute]),
 ])
 

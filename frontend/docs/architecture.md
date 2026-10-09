@@ -104,3 +104,15 @@ preserved while resizing.
 Assessment conditions live at `/assessments`; an active attempt has the stable
 route `/assessments/attempts/$attemptId`, which makes refresh and Back/Forward
 safe without putting answers or other personal data in the URL.
+
+Public legal documents live outside the authenticated route at `/privacy` and
+`/terms`; authentication screens link to both. Consent documents live at the
+relative same-origin routes `/legal/personal-data` and `/legal/publication`
+returned by candidate-service. The frontend resolves those server-provided
+paths and never substitutes a local document when the backend omits one.
+Their visible operator details
+come from `VITE_LEGAL_OPERATOR_NAME`, `VITE_LEGAL_OPERATOR_ADDRESS` and
+`VITE_LEGAL_CONTACT_EMAIL`. Deployments must set these values before production.
+The document version is aligned with the current candidate-consent version, but
+the pages do not grant consent or replace the document URL returned by the
+candidate-service.

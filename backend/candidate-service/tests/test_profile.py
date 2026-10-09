@@ -146,6 +146,19 @@ async def test_consent_with_outdated_version_rejected(
     assert response.status_code == 409
 
 
+async def test_consent_statuses_expose_current_document_routes(
+    client: AsyncClient, candidate: User
+) -> None:
+    response = await client.get(f"{API}/me/consents", headers=candidate.headers)
+
+    assert response.status_code == 200
+    statuses = {status["type"]: status for status in response.json()}
+    assert statuses["personal_data"]["required_version"] == "2026-10-01"
+    assert statuses["personal_data"]["document_url"] == "/legal/personal-data"
+    assert statuses["publication"]["required_version"] == "2026-10-01"
+    assert statuses["publication"]["document_url"] == "/legal/publication"
+
+
 async def test_revoking_consent_unpublishes(
     client: AsyncClient, candidate: User
 ) -> None:

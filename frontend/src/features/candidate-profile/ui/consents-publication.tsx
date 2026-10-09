@@ -11,6 +11,7 @@ import {
   revokeCandidateConsent,
   unpublishCandidateProfile,
 } from '@/features/candidate-profile/api/profile'
+import { resolveDocumentUrl } from '@/features/candidate-profile/model/legal-document-url'
 import { missingFieldLabel, type ProfileSectionId } from '@/features/candidate-profile/model/profile-sections'
 import type { ConsentStatus, ConsentType, ProfileResponse } from '@/shared/api/generated/candidates/models'
 import { isApiError } from '@/shared/api/transport/api-error'
@@ -42,15 +43,6 @@ const missingFieldSection: Record<string, ProfileSectionId> = {
   skills: 'skills',
   experience_or_projects: 'experience',
   consents: 'consents',
-}
-
-function documentUrl(value: string): string | null {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null
-  } catch {
-    return null
-  }
 }
 
 export function ConsentsPublication({
@@ -123,7 +115,7 @@ export function ConsentsPublication({
           {consents.isLoading ? <Spinner label="Загружаем документы…" /> : null}
           {consents.isError ? <ErrorAlert error={consents.error} title="Не удалось загрузить согласия" /> : null}
           {consents.data?.map((consent) => {
-            const url = documentUrl(consent.document_url)
+            const url = resolveDocumentUrl(consent.document_url)
             return (
               <article key={consent.type} className="space-y-4 rounded-xl border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -134,21 +126,27 @@ export function ConsentsPublication({
                   <Badge variant={consent.granted ? 'success' : 'secondary'}>{consent.granted ? 'Принято' : 'Не принято'}</Badge>
                 </div>
                 {url ? (
-                  <a className="inline-flex items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline" href={url} target="_blank" rel="noreferrer">
-                    Открыть документ <ExternalLink className="size-4" aria-hidden="true" />
-                  </a>
-                ) : <p className="flex items-start gap-2 text-sm leading-5 text-warning-foreground" role="status"><FileWarning className="mt-0.5 size-4 shrink-0" aria-hidden="true" />Ссылка на действующий документ недоступна. Принять согласие пока нельзя.</p>}
-                {consent.granted ? (
-                  <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirmAction({ kind: 'revoke', consent })}>Отозвать согласие</Button>
-                ) : url ? (
-                  <div className="space-y-3">
-                    <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm transition-colors hover:text-primary">
-                      <Checkbox className="mt-0.5" disabled={pending} checked={accepted[consent.type] ?? false} onCheckedChange={(checked) => setAccepted((current) => ({ ...current, [consent.type]: checked === true }))} />
-                      <span>Я ознакомился с документом и принимаю его условия</span>
-                    </label>
-                    <Button type="button" disabled={!accepted[consent.type] || pending} onClick={() => grant.mutate({ type: consent.type, version: consent.required_version })}>Принять согласие</Button>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="space-y-3">
+                      <a className="inline-flex items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline" href={url} target="_blank" rel="noreferrer">
+                        Открыть документ <ExternalLink className="size-4" aria-hidden="true" />
+                      </a>
+                      {!consent.granted ? (
+                        <label className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm transition-colors hover:text-primary">
+                          <Checkbox className="mt-0.5" disabled={pending} checked={accepted[consent.type] ?? false} onCheckedChange={(checked) => setAccepted((current) => ({ ...current, [consent.type]: checked === true }))} />
+                          <span>Я ознакомился с документом и принимаю его условия</span>
+                        </label>
+                      ) : null}
+                    </div>
+                    {consent.granted ? (
+                      <Button className="self-end" type="button" variant="outline" disabled={pending} onClick={() => setConfirmAction({ kind: 'revoke', consent })}>Отозвать согласие</Button>
+                    ) : (
+                      <Button className="self-end" type="button" disabled={!accepted[consent.type] || pending} onClick={() => grant.mutate({ type: consent.type, version: consent.required_version })}>Принять согласие</Button>
+                    )}
                   </div>
-                ) : null}
+                ) : (
+                  <p className="flex items-start gap-2 text-sm leading-5 text-warning-foreground" role="status"><FileWarning className="mt-0.5 size-4 shrink-0" aria-hidden="true" />Ссылка на действующий документ недоступна. Принять согласие пока нельзя.</p>
+                )}
               </article>
             )
           })}

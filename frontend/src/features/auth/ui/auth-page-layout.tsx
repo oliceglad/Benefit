@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { LegalLinks } from '@/features/legal/ui/legal-links'
 import { BrandLogo } from '@/shared/ui/brand-logo'
 
 export function AuthPageLayout({ children }: { children: ReactNode }) {
@@ -30,6 +31,7 @@ export function AuthPageLayout({ children }: { children: ReactNode }) {
             <BrandLogo className="h-9" />
           </div>
           {children}
+          <LegalLinks />
         </div>
       </section>
     </main>
