@@ -24,7 +24,7 @@ function renderTools(section: ProfileSectionId, dirty = false, onPendingChange =
   client.setQueryData(candidateProfileQueryKey, initialProfile)
   const view = render(
     <QueryClientProvider client={client}>
-      <JuryStepTools section={section} dirty={dirty} onPendingChange={onPendingChange} />
+      <JuryStepTools section={section} completed={false} dirty={dirty} onPendingChange={onPendingChange} />
     </QueryClientProvider>,
   )
   return { client, ...view }
@@ -82,7 +82,7 @@ describe('JuryStepTools', () => {
     const pending = vi.fn()
     function ProfileWithTools() {
       const { data } = useQuery({ queryKey: candidateProfileQueryKey, queryFn: ({ signal }) => getCandidateProfile(signal), staleTime: Infinity })
-      return <><JuryStepTools section="personal" dirty={false} onPendingChange={pending} /><PersonalForm profile={data!} onContinue={() => undefined} /></>
+      return <><JuryStepTools section="personal" completed={data!.completeness.onboarding_completed} dirty={false} onPendingChange={pending} /><PersonalForm profile={data!} onContinue={() => undefined} /></>
     }
     render(<QueryClientProvider client={client}><ProfileWithTools /></QueryClientProvider>)
     await userEvent.click(screen.getByRole('button', { name: fillLabel }))
@@ -148,7 +148,7 @@ describe('JuryStepTools', () => {
     const { rerender, client } = renderTools('personal')
     expect(screen.queryByRole('complementary', { name: 'Инструменты жюри' })).not.toBeInTheDocument()
     vi.stubEnv('VITE_ENABLE_JURY_TOOLS', 'true')
-    rerender(<QueryClientProvider client={client}><JuryStepTools section="personal" dirty={false} onPendingChange={() => undefined} /></QueryClientProvider>)
+    rerender(<QueryClientProvider client={client}><JuryStepTools section="personal" completed={false} dirty={false} onPendingChange={() => undefined} /></QueryClientProvider>)
     expect(screen.getByRole('button', { name: fillLabel })).toBeEnabled()
   })
 
@@ -157,5 +157,15 @@ describe('JuryStepTools', () => {
     update.skills!.length = 0
     expect(buildJuryStepUpdate('skills')?.skills).toHaveLength(3)
     expect(buildJuryStepUpdate('consents')).toBeNull()
+  })
+
+  it('hides jury tools as soon as onboarding is complete, including in a jury build', () => {
+    vi.stubEnv('VITE_ENABLE_JURY_TOOLS', 'true')
+    const { client, rerender } = renderTools('personal')
+    expect(screen.getByRole('button', { name: fillLabel })).toBeVisible()
+    rerender(<QueryClientProvider client={client}><JuryStepTools section="personal" completed dirty={false} onPendingChange={() => undefined} /></QueryClientProvider>)
+    expect(screen.queryByRole('complementary', { name: 'Инструменты жюри' })).not.toBeInTheDocument()
+    rerender(<QueryClientProvider client={client}><JuryStepTools section="consents" completed dirty={false} onPendingChange={() => undefined} /></QueryClientProvider>)
+    expect(screen.queryByRole('button', { name: 'Проверить готовность' })).not.toBeInTheDocument()
   })
 })

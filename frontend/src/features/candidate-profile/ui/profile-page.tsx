@@ -122,7 +122,7 @@ export function ProfilePage() {
       {isDesktop ? <div inert={juryPending}><ProfileSummaryCard profile={profile.data} onNavigate={navigateTo} /></div> : null}
       {!importActive ? (
         <div ref={formStartRef} className="scroll-mt-4 space-y-6">
-          <JuryStepTools section={activeSection} dirty={draft.isDirty} onPendingChange={setJuryPending} />
+          <JuryStepTools section={activeSection} completed={profile.data.completeness.onboarding_completed} dirty={draft.isDirty} onPendingChange={setJuryPending} />
           <div inert={juryPending} className="grid min-w-0 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
             {isDesktop ? (
               <nav aria-label="Разделы профиля" className="sticky top-5 space-y-1.5 rounded-2xl border bg-card p-2 shadow-card">

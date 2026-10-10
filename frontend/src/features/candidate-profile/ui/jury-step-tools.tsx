@@ -13,10 +13,11 @@ import { Spinner } from '@/shared/ui/spinner'
 
 export function JuryStepTools(props: {
   section: ProfileSectionId
+  completed: boolean
   dirty: boolean
   onPendingChange: (pending: boolean) => void
 }) {
-  return juryToolsEnabled() ? <EnabledJuryStepTools key={props.section} {...props} /> : null
+  return juryToolsEnabled() && !props.completed ? <EnabledJuryStepTools key={props.section} {...props} /> : null
 }
 
 function EnabledJuryStepTools({ section, dirty, onPendingChange }: {

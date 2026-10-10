@@ -1,4 +1,4 @@
-# API coverage — account, candidate profile and vacancies
+# API coverage — account, candidate profile, vacancies and talent
 
 Backend revision: `388a90a221c6c8339f8513cdf1ce3227a4970c53`.
 
@@ -145,7 +145,7 @@ at repository revision `edc285a4bbf6e71d6df24b703230a7445280ab3c`.
 | First-vacancy company setup | `GET/PUT /api/v1/employers/company` | `employer` | Implemented; only offered for missing company |
 | Own applications | `GET /api/v1/applications` | `candidate` | Implemented |
 | Apply to vacancy | `POST /api/v1/applications` | `candidate` | Implemented; explicit action with contact disclosure |
-| Pipeline persistence | Contract pending | `employer` | Local browser drafts only; no pipeline API called |
+| Pipeline template persistence | No custom-template contract | `employer` | Local browser drafts only; no hiring API called |
 
 The pipeline stage catalog is a user-requested proposal. It has no automatic
 mapping to application statuses. Scope, routes, backend handoff and verification
@@ -159,3 +159,32 @@ attachment upload/download use the existing `/api/v1/chat` public operations.
 account roles use the same feature, with server-authorized participant access.
 The saved snapshot, error behavior and missing participant display names are
 documented in [chat.md](chat.md). Task execution and assessment flows are unchanged.
+
+## Candidate bank — 2026-10-11
+
+`pasha` incorporates `origin/main` at `898f1c3`. The new committed matching-service
+OpenAPI snapshot was read from the running local gateway. Orval generates the
+`talent` client using the same cookie/CSRF transport and 15-second request timeout.
+
+| Scenario | Gateway operation | Auth | Status |
+|---|---|---|---|
+| Candidate search, categories and pagination | `GET /api/v1/talent/candidates` | `employer` | Implemented at `/talent` |
+| FSP presence and sorting | Same operation, `has_fsp`, `sort=fsp` | `employer` | Implemented; absence and hidden data are not conflated in copy |
+| Candidate and achievement details | Public fields returned in the search response | `employer` | Inline expansion; no contact endpoint called |
+
+Additional filters cover specialization, repeated grades, confirmation status,
+skills (`all`/`any`), city, work format, experience and activity. Repeated query
+keys for grades and skills follow the API contract. Search state and expanded
+candidate ID are kept in the URL; selection is excluded from the API request.
+Loading, empty, error/retry and rate-limit states use existing UI primitives.
+
+`fsp` sorting ranks by visible achievement count, then activity. It does not
+rank individual sporting results. Event, discipline and prize-place filters
+are not present in the public search contract. No external FSP linking,
+invitation creation or matching-by-need behavior is added in this slice.
+See [talent.md](talent.md) for data and verification limitations.
+
+Main already contains `/api/v1/hiring` for hiring processes, interviews and
+offers. It remains unconnected to the frontend constructor, and does not expose
+custom pipeline-template persistence. Earlier notes about a wholly missing
+hiring contract should not be read as the current backend state.

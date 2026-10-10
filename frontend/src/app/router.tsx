@@ -22,6 +22,7 @@ import { PersonalDataConsentPage } from '@/features/legal/ui/personal-data-conse
 import { PublicationConsentPage } from '@/features/legal/ui/publication-consent-page'
 import { TermsPage } from '@/features/legal/ui/terms-page'
 import { vacancySearchSchema } from '@/features/vacancies/model/vacancy-search'
+import { talentSearchSchema } from '@/features/talent/model/talent-search'
 import { session } from '@/shared/session/session'
 
 const rootRoute = createRootRoute({ component: Outlet })
@@ -164,6 +165,12 @@ function requireEmployer() {
     throw redirect({ to: '/vacancies', search: { offset: 0 } })
   }
 }
+const talentRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute, path: '/talent',
+  beforeLoad: requireEmployer,
+  validateSearch: (search: Record<string, unknown>) => talentSearchSchema.parse(search),
+  component: lazyRouteComponent(() => import('@/features/talent/ui/talent-page'), 'TalentPage'),
+})
 const vacancyCreateRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/new',
   beforeLoad: requireEmployer,
@@ -233,7 +240,7 @@ const routeTree = rootRoute.addChildren([
   publicationConsentRoute,
   ...(companyDesignPreviewRoute ? [companyDesignPreviewRoute] : []),
   ...(pipelineDesignPreviewRoute ? [pipelineDesignPreviewRoute] : []),
-  cabinetLayoutRoute.addChildren([vacanciesRoute, vacancyCreateRoute, vacancyEditRoute, vacancyDetailRoute, pipelinesRoute, messagesRoute.addChildren([messageThreadRoute])]),
+  cabinetLayoutRoute.addChildren([talentRoute, vacanciesRoute, vacancyCreateRoute, vacancyEditRoute, vacancyDetailRoute, pipelinesRoute, messagesRoute.addChildren([messageThreadRoute])]),
   candidateLayoutRoute.addChildren([profileRoute, assessmentsRoute, assessmentAttemptRoute]),
 ])
 

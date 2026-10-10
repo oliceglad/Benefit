@@ -135,7 +135,9 @@ validated at the route. New vacancy and pipeline pages load lazily.
 model. It uses the generated employer client only to read own vacancy options.
 The pipeline draft contains stage configuration, not candidate records, and
 is stored under an account-specific versioned browser key. Persistence to the
-server awaits a backend contract; no pipeline mutation endpoint is called.
+server has no custom-template contract; no hiring mutation endpoint is called.
+Main now contains a separate `/api/v1/hiring` process/interview/offer API that
+will need explicit frontend integration rather than an implicit stage mapping.
 The DEV-only preview composes the same page with a separate local key and
 disables employer API reads. Its authenticated DEV session may read the public
 vacancy catalog to attach a local preview. See `vacancies-and-pipelines.md` for
@@ -159,3 +161,18 @@ in-memory drafts without browser storage. The generated chat client uses the
 shared authenticated transport; a Blob option supports arbitrary file downloads.
 The socket invalidates account-scoped queries and REST polling covers reconnects.
 UI states and current API limitations are recorded in [chat.md](chat.md).
+
+## Candidate bank
+
+`features/talent` owns employer search and inline public candidate details.
+`app` composes the guarded lazy `/talent` route and the employer navigation link.
+Filters, sort, offset and selected candidate ID are validated URL state.
+The selected ID is excluded from the request/cache parameters, so opening a card
+does not refetch the search or discard an unsent filter draft. Query keys include
+the current account ID; logout still clears private query data centrally.
+
+The generated matching client uses existing transport and cancellation.
+Feature-local presentation schemas parse untyped skill/achievement dictionaries;
+achievement links permit only HTTP(S). The UI uses server categories and grade
+confirmation, never converts declared skills into confirmed qualifications,
+and fetches no private contacts. See [talent.md](talent.md).

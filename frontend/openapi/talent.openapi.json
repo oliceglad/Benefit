@@ -1,0 +1,1377 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Benefit Matching",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/talent/candidates": {
+      "get": {
+        "tags": [
+          "talent: банк кандидатов"
+        ],
+        "summary": "Search Candidates",
+        "description": "Поиск с фасетами по категориям (специализация + грейд + подтверждение).",
+        "operationId": "search_candidates_api_v1_talent_candidates_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "specialization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ITRole"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Specialization"
+            }
+          },
+          {
+            "name": "grade",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Grade"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Grade"
+            }
+          },
+          {
+            "name": "grade_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "confirmed",
+                    "not_confirmed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Grade Status"
+            }
+          },
+          {
+            "name": "skills",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Навыки",
+              "title": "Skills"
+            },
+            "description": "Навыки"
+          },
+          {
+            "name": "skills_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "any"
+              ],
+              "type": "string",
+              "description": "all — все навыки, any — любой",
+              "default": "all",
+              "title": "Skills Mode"
+            },
+            "description": "all — все навыки, any — любой"
+          },
+          {
+            "name": "has_fsp",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Есть подтверждённые достижения ФСП",
+              "title": "Has Fsp"
+            },
+            "description": "Есть подтверждённые достижения ФСП"
+          },
+          {
+            "name": "industry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Industry"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Industry"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "name": "work_format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WorkFormat"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Work Format"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Полнотекстовый поиск",
+              "title": "Q"
+            },
+            "description": "Полнотекстовый поиск"
+          },
+          {
+            "name": "experience_min",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 50,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Лет",
+              "title": "Experience Min"
+            },
+            "description": "Лет"
+          },
+          {
+            "name": "experience_max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 50,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Лет",
+              "title": "Experience Max"
+            },
+            "description": "Лет"
+          },
+          {
+            "name": "salary_max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Бюджет: ожидания не выше",
+              "title": "Salary Max"
+            },
+            "description": "Бюджет: ожидания не выше"
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Только с активностью за 30 дней",
+              "default": false,
+              "title": "Active Only"
+            },
+            "description": "Только с активностью за 30 дней"
+          },
+          {
+            "name": "include_not_looking",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Not Looking"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "relevance",
+                "skills",
+                "actuality",
+                "experience",
+                "fsp"
+              ],
+              "type": "string",
+              "default": "relevance",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/talent/candidates/{user_id}/similar": {
+      "get": {
+        "tags": [
+          "talent: банк кандидатов"
+        ],
+        "summary": "Similar Candidates",
+        "description": "Похожие кандидаты: общий стек, специализация, близкий грейд.",
+        "operationId": "similar_candidates_api_v1_talent_candidates__user_id__similar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SimilarCandidate"
+                  },
+                  "title": "Response Similar Candidates Api V1 Talent Candidates  User Id  Similar Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/internal/v1/match": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Match",
+        "operationId": "match_internal_v1_match_post",
+        "parameters": [
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MatchCriteria"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Actuality": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "last_active_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Active At"
+          },
+          "days_since_active": {
+            "type": "integer",
+            "title": "Days Since Active"
+          },
+          "tasks_passed": {
+            "type": "integer",
+            "title": "Tasks Passed",
+            "default": 0
+          },
+          "tasks_submitted": {
+            "type": "integer",
+            "title": "Tasks Submitted",
+            "default": 0
+          },
+          "employer_tests_completed": {
+            "type": "integer",
+            "title": "Employer Tests Completed",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "last_active_at",
+          "days_since_active"
+        ],
+        "title": "Actuality"
+      },
+      "CandidateCard": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "relocation_ready": {
+            "type": "boolean",
+            "title": "Relocation Ready"
+          },
+          "job_search_status": {
+            "type": "string",
+            "title": "Job Search Status"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/ITRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "skills": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "experience_months": {
+            "type": "integer",
+            "title": "Experience Months"
+          },
+          "work_formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Work Formats"
+          },
+          "salary_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary From"
+          },
+          "salary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary Currency"
+          },
+          "fsp_count": {
+            "type": "integer",
+            "title": "Fsp Count"
+          },
+          "fsp_achievements": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Fsp Achievements"
+          },
+          "actuality": {
+            "$ref": "#/components/schemas/Actuality"
+          },
+          "has_photo": {
+            "type": "boolean",
+            "title": "Has Photo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "full_name",
+          "headline",
+          "city",
+          "relocation_ready",
+          "job_search_status",
+          "roles",
+          "category",
+          "skills",
+          "experience_months",
+          "work_formats",
+          "salary_from",
+          "salary_currency",
+          "fsp_count",
+          "fsp_achievements",
+          "actuality",
+          "has_photo"
+        ],
+        "title": "CandidateCard",
+        "description": "Карточка кандидата в поиске и подборке (без контактов)."
+      },
+      "Category": {
+        "properties": {
+          "specialization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ITRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade_status": {
+            "type": "string",
+            "title": "Grade Status"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Percent"
+          },
+          "test_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "specialization",
+          "grade",
+          "grade_status",
+          "industry",
+          "verified_percent",
+          "test_title"
+        ],
+        "title": "Category"
+      },
+      "CategoryCount": {
+        "properties": {
+          "specialization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ITRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Grade"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grade_status": {
+            "type": "string",
+            "title": "Grade Status"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "best_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Score"
+          },
+          "avg_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Score"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "specialization",
+          "grade",
+          "grade_status",
+          "count"
+        ],
+        "title": "CategoryCount",
+        "description": "Категория (специализация + грейд + подтверждение) и число кандидатов."
+      },
+      "Grade": {
+        "type": "string",
+        "enum": [
+          "intern",
+          "junior",
+          "middle",
+          "senior",
+          "lead"
+        ],
+        "title": "Grade"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ITRole": {
+        "type": "string",
+        "enum": [
+          "backend",
+          "frontend",
+          "fullstack",
+          "mobile",
+          "devops",
+          "qa",
+          "qa_automation",
+          "data_scientist",
+          "ml_engineer",
+          "data_engineer",
+          "data_analyst",
+          "system_analyst",
+          "business_analyst",
+          "product_manager",
+          "project_manager",
+          "designer",
+          "gamedev",
+          "security",
+          "embedded",
+          "dba",
+          "team_lead",
+          "architect"
+        ],
+        "title": "ITRole"
+      },
+      "Industry": {
+        "type": "string",
+        "enum": [
+          "fintech",
+          "ecommerce",
+          "govtech",
+          "telecom",
+          "healthtech",
+          "edtech",
+          "gamedev",
+          "media",
+          "logistics",
+          "industry",
+          "energy",
+          "cybersecurity",
+          "ai",
+          "travel",
+          "real_estate",
+          "outsource",
+          "other"
+        ],
+        "title": "Industry"
+      },
+      "MatchCriteria": {
+        "properties": {
+          "specialization": {
+            "$ref": "#/components/schemas/ITRole"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/Grade"
+          },
+          "required_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required Skills"
+          },
+          "optional_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Optional Skills"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "team_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Description"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Industry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_formats": {
+            "items": {
+              "$ref": "#/components/schemas/WorkFormat"
+            },
+            "type": "array",
+            "title": "Work Formats"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "salary_to": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salary To"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "RUB"
+          },
+          "require_confirmed_grade": {
+            "type": "boolean",
+            "title": "Require Confirmed Grade",
+            "default": false
+          },
+          "strict_skills": {
+            "type": "boolean",
+            "title": "Strict Skills",
+            "description": "Все обязательные навыки должны быть у кандидата",
+            "default": false
+          },
+          "grade_tolerance": {
+            "type": "integer",
+            "maximum": 4,
+            "minimum": 0,
+            "title": "Grade Tolerance",
+            "description": "Допустимое отклонение грейда, ступеней",
+            "default": 1
+          },
+          "min_experience_months": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Experience Months"
+          },
+          "hard_budget": {
+            "type": "boolean",
+            "title": "Hard Budget",
+            "description": "Исключать кандидатов с ожиданиями выше бюджета",
+            "default": false
+          },
+          "strict_format": {
+            "type": "boolean",
+            "title": "Strict Format",
+            "description": "Исключать кандидатов с другим форматом работы",
+            "default": false
+          },
+          "liked_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Liked Ids"
+          },
+          "disliked_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Disliked Ids"
+          },
+          "contacted": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "format": "uuid"
+            },
+            "type": "object",
+            "title": "Contacted"
+          },
+          "hide_contacted": {
+            "type": "boolean",
+            "title": "Hide Contacted",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Limit",
+            "default": 20
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "title": "Offset",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "specialization",
+          "grade"
+        ],
+        "title": "MatchCriteria",
+        "description": "Критерии подбора (из потребности работодателя)."
+      },
+      "MatchResult": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/MatchedCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "excluded": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Excluded"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "categories",
+          "candidates",
+          "excluded",
+          "suggestions",
+          "keywords"
+        ],
+        "title": "MatchResult"
+      },
+      "MatchedCandidate": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "fit": {
+            "type": "string",
+            "enum": [
+              "excellent",
+              "good",
+              "partial"
+            ],
+            "title": "Fit"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/ScorePart"
+            },
+            "type": "array",
+            "title": "Breakdown"
+          },
+          "matched_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matched Skills"
+          },
+          "related_skills": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedSkill"
+            },
+            "type": "array",
+            "title": "Related Skills"
+          },
+          "missing_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Skills"
+          },
+          "contact_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Status"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "like",
+                  "dislike"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/CandidateCard"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "fit",
+          "reasons",
+          "warnings",
+          "breakdown",
+          "matched_skills",
+          "related_skills",
+          "missing_skills",
+          "contact_status",
+          "feedback",
+          "candidate"
+        ],
+        "title": "MatchedCandidate"
+      },
+      "RelatedSkill": {
+        "properties": {
+          "required": {
+            "type": "string",
+            "title": "Required"
+          },
+          "has": {
+            "type": "string",
+            "title": "Has"
+          }
+        },
+        "type": "object",
+        "required": [
+          "required",
+          "has"
+        ],
+        "title": "RelatedSkill"
+      },
+      "ScorePart": {
+        "properties": {
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "points": {
+            "type": "number",
+            "title": "Points"
+          },
+          "max_points": {
+            "type": "number",
+            "title": "Max Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component",
+          "title",
+          "points",
+          "max_points"
+        ],
+        "title": "ScorePart",
+        "description": "Компонент оценки: сколько баллов набрано из возможных."
+      },
+      "SearchPage": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateCard"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "type": "array",
+            "title": "Categories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "items",
+          "categories"
+        ],
+        "title": "SearchPage"
+      },
+      "SimilarCandidate": {
+        "properties": {
+          "similarity": {
+            "type": "integer",
+            "title": "Similarity"
+          },
+          "shared_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shared Skills"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/CandidateCard"
+          }
+        },
+        "type": "object",
+        "required": [
+          "similarity",
+          "shared_skills",
+          "candidate"
+        ],
+        "title": "SimilarCandidate"
+      },
+      "Suggestion": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "extra_candidates": {
+            "type": "integer",
+            "title": "Extra Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "extra_candidates"
+        ],
+        "title": "Suggestion",
+        "description": "Какое требование ослабить, чтобы найти больше кандидатов."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WorkFormat": {
+        "type": "string",
+        "enum": [
+          "office",
+          "remote",
+          "hybrid"
+        ],
+        "title": "WorkFormat"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
