@@ -180,9 +180,35 @@ Loading, empty, error/retry and rate-limit states use existing UI primitives.
 
 `fsp` sorting ranks by visible achievement count, then activity. It does not
 rank individual sporting results. Event, discipline and prize-place filters
-are not present in the public search contract. No external FSP linking,
-invitation creation or matching-by-need behavior is added in this slice.
+are not present in the public search contract. No external FSP linking or
+invitation creation was added in the original candidate bank slice.
 See [talent.md](talent.md) for data and verification limitations.
+
+## Needs and explainable matching — 2026-10-11
+
+The existing `/talent` now composes need selection, an inline editor and matching.
+There are no new routes. Existing generated employer operations use the common
+cookie/CSRF transport, a 15-second timeout and query cancellation; generated code
+is unchanged. Backend and infrastructure are outside this change.
+
+| Scenario | Gateway operation | Status |
+|---|---|---|
+| Own needs and selected requirements | `GET /api/v1/employers/needs`, `GET /api/v1/employers/needs/{id}` | Implemented |
+| Create/update all requirements | `POST /api/v1/employers/needs`, `PUT /api/v1/employers/needs/{id}` | Implemented; authoritative response updates account-scoped cache |
+| Close/reopen | `PATCH /api/v1/employers/needs/{id}` | Implemented with confirmation |
+| Categories and explained candidate ranking | `GET /api/v1/employers/needs/{id}/matches` | Implemented; runtime response validation |
+| Company prerequisite | Existing `GET/POST /api/v1/employers/company` | Existing setup reused by app composition |
+
+The matching operation accepts `limit`, `offset`, `hide_contacted` only. Manual
+catalog filters are retained for returning to the catalog but are never sent
+to this endpoint. In particular, strict FSP presence filtering within a need
+is not available in the server contract. Server scoring components, reasons,
+warnings, matched/related/missing skills, excluded counts and suggestions are
+rendered without client-side scoring. A score is points out of 100, not a hiring
+probability. Suggestions open the editor rather than fabricate structured changes.
+
+The live desktop check created and edited a synthetic need: adding Kafka changed
+the score from 80 to 68 and exposed the missing skill. No invitations were sent.
 
 Main already contains `/api/v1/hiring` for hiring processes, interviews and
 offers. It remains unconnected to the frontend constructor, and does not expose

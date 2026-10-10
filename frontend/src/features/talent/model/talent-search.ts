@@ -25,14 +25,18 @@ export const talentSearchSchema = z.object({
   sort: z.enum(['relevance', 'skills', 'actuality', 'experience', 'fsp']).catch('relevance').default('relevance'),
   offset: z.coerce.number().int().min(0).max(1_000_000).catch(0).default(0),
   candidate: z.uuid().optional().catch(undefined),
+  need: z.uuid().optional().catch(undefined),
+  hide_contacted: z.preprocess((value) => value === true || value === 'true', z.boolean()).default(false),
 })
 
 export type TalentSearch = z.infer<typeof talentSearchSchema>
 export const talentPageSize = 12
 
 export function talentRequest(search: TalentSearch): SearchCandidatesApiV1TalentCandidatesGetParams {
-  const { fsp, skills, candidate: _candidate, ...params } = search
+  const { fsp, skills, candidate: _candidate, need: _need, hide_contacted: _hideContacted, ...params } = search
   void _candidate
+  void _need
+  void _hideContacted
   return {
     ...params,
     skills: [...new Set((skills ?? '').split(/[,;\n]/).map((skill) => skill.trim()).filter(Boolean))],

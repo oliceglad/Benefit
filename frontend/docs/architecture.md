@@ -176,3 +176,19 @@ Feature-local presentation schemas parse untyped skill/achievement dictionaries;
 achievement links permit only HTTP(S). The UI uses server categories and grade
 confirmation, never converts declared skills into confirmed qualifications,
 and fetches no private contacts. See [talent.md](talent.md).
+
+The same `/talent` workspace now owns need selection, inline creation/editing,
+status changes and explainable matching. `app/pages/talent-page` composes the
+existing vacancy company prerequisite/setup with the talent feature; neither
+feature imports the other's private modules. Their generic field wrapper lives
+in `shared/ui/form-field` and carries no business rules.
+
+Need and match queries include account and need IDs. Match keys additionally
+include the saved revision, offset and hide-contacted flag. Successful mutations
+replace the saved requirements with the authoritative response, invalidate
+matching and clear the selected candidate/page. Catalog filter drafts are not
+silently mixed into need matching: the server endpoint accepts only pagination
+and hide-contacted. Need ID and expanded candidate survive reload through URL
+state. Generated generic response dictionaries are checked by a feature-local
+Zod schema before rendering. Dirty form state is subscribed during render and
+used by both local cancel confirmation and the router blocker.

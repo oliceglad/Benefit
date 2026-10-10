@@ -2,11 +2,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useBlocker } from '@tanstack/react-router'
 import { Building2 } from 'lucide-react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { createVacancyCompany } from '@/features/vacancies/api/vacancy-company'
-import { VacancyFormField, vacancySelectClass } from '@/features/vacancies/ui/vacancy-form-field'
+import { FormField as VacancyFormField, formSelectClass as vacancySelectClass } from '@/shared/ui/form-field'
 import { Industry } from '@/shared/api/generated/employers/models'
 import { RequestError } from '@/shared/api/ui/request-error'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/ui/alert-dialog'
@@ -28,18 +29,20 @@ const industries: Record<Industry, string> = {
   real_estate: 'Недвижимость', outsource: 'Аутсорсинг', other: 'Другая отрасль',
 }
 
-export function VacancyCompanySetup() {
+export function VacancyCompanySetup({ purpose = 'vacancy', onCancel }: { purpose?: 'vacancy' | 'need'; onCancel?: () => void }) {
   const client = useQueryClient()
+  const [cancelRequested, setCancelRequested] = useState(false)
   const form = useForm<z.infer<typeof companySchema>>({ resolver: zodResolver(companySchema), defaultValues: { name: '', industry: 'other', description: '' } })
-  const blocker = useBlocker({ shouldBlockFn: () => form.formState.isDirty, enableBeforeUnload: () => form.formState.isDirty, withResolver: true })
+  const isDirty = form.formState.isDirty
   const mutation = useMutation({
     mutationFn: createVacancyCompany,
     onSuccess: (company) => { form.reset(); client.setQueryData(['vacancy-company'], company) },
   })
+  const blocker = useBlocker({ shouldBlockFn: () => isDirty || mutation.isPending, enableBeforeUnload: () => isDirty || mutation.isPending, withResolver: true })
   return (
     <section className="mx-auto max-w-2xl space-y-6">
-      <Button asChild variant="ghost"><Link to="/vacancies" search={{ offset: 0 }}>К вакансиям</Link></Button>
-      <div className="space-y-3"><Building2 className="size-7 text-primary" aria-hidden="true" /><h1 className="text-3xl font-semibold">Сначала — ваша компания</h1><p className="text-sm leading-6 text-muted-foreground">Чтобы создать первую вакансию, добавьте компанию. Эти сведения будут связаны с вакансиями вашего аккаунта.</p></div>
+      {purpose === 'vacancy' ? <Button asChild variant="ghost"><Link to="/vacancies" search={{ offset: 0 }}>К вакансиям</Link></Button> : null}
+      <div className="space-y-3"><Building2 className="size-7 text-primary" aria-hidden="true" />{purpose === 'need' ? <h2 className="text-2xl font-semibold">Сначала — ваша компания</h2> : <h1 className="text-3xl font-semibold">Сначала — ваша компания</h1>}<p className="text-sm leading-6 text-muted-foreground">{purpose === 'need' ? 'Добавьте компанию, чтобы сохранить потребность и начать подбор команды.' : 'Чтобы создать первую вакансию, добавьте компанию. Эти сведения будут связаны с вакансиями вашего аккаунта.'}</p></div>
       <form noValidate onSubmit={(event) => { void form.handleSubmit((values) => mutation.mutate(values))(event) }} className="space-y-5 rounded-xl border bg-card p-6 shadow-card">
         <fieldset disabled={mutation.isPending} className="space-y-5">
           <legend className="sr-only">Данные компании</legend>
@@ -48,17 +51,17 @@ export function VacancyCompanySetup() {
           <VacancyFormField id="company-description" label="О компании" required error={form.formState.errors.description?.message}>{(props) => <Textarea {...props} rows={5} maxLength={8000} {...form.register('description')} />}</VacancyFormField>
         </fieldset>
         {mutation.isError ? <RequestError error={mutation.error} /> : null}
-        <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? <Spinner label="Сохраняем компанию…" /> : 'Сохранить и создать вакансию'}</Button>
+        <div className="flex flex-wrap gap-3"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? <Spinner label="Сохраняем компанию…" /> : purpose === 'need' ? 'Сохранить и описать потребность' : 'Сохранить и создать вакансию'}</Button>{onCancel ? <Button type="button" variant="outline" disabled={mutation.isPending} onClick={() => isDirty ? setCancelRequested(true) : onCancel()}>Отмена</Button> : null}</div>
       </form>
-      <AlertDialog open={blocker.status === 'blocked'}>
+      <AlertDialog open={cancelRequested || blocker.status === 'blocked'}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Выйти без сохранения?</AlertDialogTitle>
-            <AlertDialogDescription>Введённые сведения о компании не будут сохранены.</AlertDialogDescription>
+            <AlertDialogTitle>{mutation.isPending ? 'Дождитесь сохранения' : 'Выйти без сохранения?'}</AlertDialogTitle>
+            <AlertDialogDescription>{mutation.isPending ? 'Компания сохраняется. Результат появится после ответа сервера.' : 'Введённые сведения о компании не будут сохранены.'}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => blocker.reset?.()}>Остаться</AlertDialogCancel>
-            <Button variant="outline" onClick={() => blocker.proceed?.()}>Выйти</Button>
+            <AlertDialogCancel onClick={() => { setCancelRequested(false); blocker.reset?.() }}>Остаться</AlertDialogCancel>
+            {!mutation.isPending ? <Button variant="outline" onClick={() => { if (cancelRequested) { setCancelRequested(false); onCancel?.() } else blocker.proceed?.() }}>Выйти</Button> : null}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

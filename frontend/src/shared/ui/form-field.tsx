@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { Label } from '@/shared/ui/label'
 
-export function VacancyFormField({ id, label, error, hint, children, required = false }: {
+export function FormField({ id, label, error, hint, children, required = false }: {
   id: string
   label: string
   error?: string
@@ -19,4 +19,4 @@ export function VacancyFormField({ id, label, error, hint, children, required = 
   )
 }
 
-export const vacancySelectClass = 'min-h-12 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 aria-invalid:border-destructive'
+export const formSelectClass = 'min-h-12 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 aria-invalid:border-destructive'

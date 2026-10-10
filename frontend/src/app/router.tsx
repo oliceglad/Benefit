@@ -169,7 +169,7 @@ const talentRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/talent',
   beforeLoad: requireEmployer,
   validateSearch: (search: Record<string, unknown>) => talentSearchSchema.parse(search),
-  component: lazyRouteComponent(() => import('@/features/talent/ui/talent-page'), 'TalentPage'),
+  component: lazyRouteComponent(() => import('@/app/pages/talent-page'), 'TalentPage'),
 })
 const vacancyCreateRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/new',

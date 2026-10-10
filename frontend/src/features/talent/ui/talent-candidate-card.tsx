@@ -2,7 +2,8 @@ import { Award, BadgeCheck, ChevronDown, ExternalLink, LockKeyhole, MapPin } fro
 
 import { candidateAchievements, candidateSkills, dateLabel, experienceLabel, publicAchievementUrl } from '@/features/talent/model/candidate-presentation'
 import { formatLabels, gradeLabels, roleLabels } from '@/features/talent/model/talent-search'
-import type { CandidateCard, WorkFormat } from '@/shared/api/generated/talent/models'
+import type { CandidateCard, MatchedCandidate, WorkFormat } from '@/shared/api/generated/talent/models'
+import { MatchExplanation, MatchPreview } from '@/features/talent/ui/match-explanation'
 import { Badge } from '@/shared/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/shared/ui/collapsible'
 
@@ -11,7 +12,7 @@ const achievementResults: Record<string, string> = { winner: 'Победител
 const searchStatuses: Record<string, string> = { active: 'Активно ищет работу', open: 'Рассматривает предложения', not_looking: 'Сейчас не ищет работу' }
 const skillLevels: Record<string, string> = { beginner: 'Базовый', intermediate: 'Средний', advanced: 'Продвинутый', expert: 'Эксперт' }
 
-export function TalentCandidateCard({ candidate, open, onOpenChange }: { candidate: CandidateCard; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function TalentCandidateCard({ candidate, match, open, onOpenChange }: { candidate: CandidateCard; match?: MatchedCandidate; open: boolean; onOpenChange: (open: boolean) => void }) {
   const skills = candidateSkills(candidate.skills)
   const achievements = candidateAchievements(candidate.fsp_achievements)
   const confirmed = candidate.category.grade_status === 'confirmed'
@@ -45,8 +46,10 @@ export function TalentCandidateCard({ candidate, open, onOpenChange }: { candida
             </button>
           </CollapsibleTrigger>
         </h2>
+        {match ? <MatchPreview match={match} /> : null}
         <CollapsibleContent>
           <div role="region" aria-labelledby={triggerId} className="space-y-6 border-t p-5">
+            {match ? <MatchExplanation match={match} /> : null}
             <div className="grid gap-5 sm:grid-cols-2">
               <section className="space-y-2"><h3 className="text-sm font-semibold">Категория и подтверждение</h3><p className="text-sm">{category}</p><p className="text-sm text-muted-foreground">{confirmed ? 'Подтверждено платформенным тестированием.' : 'Грейд указан в профиле и пока не подтверждён тестом.'}</p>{confirmed && candidate.category.test_title ? <p className="text-sm text-muted-foreground">Тест: {candidate.category.test_title}</p> : null}{confirmed && percent != null && percent >= 0 && percent <= 100 ? <p className="text-sm text-muted-foreground">Результат: {new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(percent)}%</p> : null}</section>
               <section className="space-y-2"><h3 className="text-sm font-semibold">Условия и активность</h3><p className="text-sm">{salary}</p><p className="text-sm text-muted-foreground">{candidate.work_formats.length ? candidate.work_formats.map((format) => formatLabels[format as WorkFormat] ?? format).join(' · ') : 'Формат работы не указан'}{candidate.relocation_ready ? ' · Готов к переезду' : ''}</p>{lastActive ? <p className="text-sm text-muted-foreground">Последняя активность: {lastActive}</p> : null}</section>
