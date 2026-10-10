@@ -203,3 +203,11 @@ completion state and no dependency on profile onboarding or generated APIs.
 The underlying route stays mounted, preserving unsaved forms and search state.
 CSS/SVG animations respect reduced motion; keyboard focus is contained in the
 dialog and restored to the trigger on close. See [platform-guide.md](platform-guide.md).
+
+## Invitations and company composition
+
+`app/pages/messages-page` injects the invitation inbox into the existing chat
+workspace; `app/pages/talent-page` supplies candidate action slots for both catalog
+and matching. `app/pages/vacancies-page` adds the company panel to the existing
+vacancies section. These features use generated clients and the shared transport,
+without cross-feature private imports. See [invitations.md](invitations.md).

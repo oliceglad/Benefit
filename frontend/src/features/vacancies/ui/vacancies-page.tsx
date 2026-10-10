@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { BriefcaseBusiness, Plus, Search, SlidersHorizontal } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 
 import { listOwnVacancies, listVacancies } from '@/features/vacancies/api/vacancies'
 import {
@@ -20,7 +20,7 @@ import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
 import { Spinner } from '@/shared/ui/spinner'
 
-export function VacanciesPage() {
+export function VacanciesPage({ companyPanel }: { companyPanel?: ReactNode }) {
   const employer = useSession().user?.role === 'employer'
   const search = vacancySearchSchema.parse(useSearch({ strict: false }))
   const navigate = useNavigate()
@@ -65,6 +65,7 @@ export function VacanciesPage() {
           <div className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link to="/pipelines">Пайплайны</Link></Button><Button asChild><Link to="/vacancies/new"><Plus aria-hidden="true" />Создать вакансию</Link></Button></div>
         ) : null}
       </header>
+      {employer ? companyPanel : null}
       <VacancyFilters key={JSON.stringify(search)} value={search} onApply={changeSearch} />
       {employer ? (
         <nav aria-label="Статусы вакансий" className="flex flex-wrap gap-1 border-b pb-2">

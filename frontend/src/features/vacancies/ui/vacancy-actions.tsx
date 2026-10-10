@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Spinner } from '@/shared/ui/spinner'
+import { publicationSalaryError } from '@/shared/lib/salary-range'
 
 const transitions = {
   published: { title: 'Опубликовать вакансию?', action: 'Опубликовать', description: 'Вакансия появится в каталоге. Соискатели смогут посмотреть условия и отправить отклик.' },
@@ -22,6 +23,7 @@ export function VacancyActions({ vacancy }: { vacancy: VacancyResponse }) {
   const client = useQueryClient()
   const [target, setTarget] = useState<VacancyStatus | null>(null)
   const [notice, setNotice] = useState('')
+  const [salaryError, setSalaryError] = useState<string | null>(null)
   const mutation = useMutation({
     mutationFn: (status: VacancyStatus) => changeVacancyStatus(vacancy.id, status),
     onSuccess: (saved) => {
@@ -34,6 +36,9 @@ export function VacancyActions({ vacancy }: { vacancy: VacancyResponse }) {
   function selectStatus(status: VacancyStatus) {
     mutation.reset()
     setNotice('')
+    const issue = status === 'published' ? publicationSalaryError(vacancy) : null
+    setSalaryError(issue)
+    if (issue) return
     setTarget(status)
   }
 
@@ -59,6 +64,7 @@ export function VacancyActions({ vacancy }: { vacancy: VacancyResponse }) {
         </div>
       </div>
       {notice ? <p role="status" className="text-sm text-primary">{notice}</p> : null}
+      {salaryError ? <div role="alert" className="space-y-2 rounded-lg border border-destructive/20 bg-destructive/5 p-4 text-sm"><p>{salaryError}</p><Link to="/vacancies/$vacancyId/edit" params={{ vacancyId: vacancy.id }} className="font-medium text-primary underline underline-offset-4">Заполнить условия вакансии</Link></div> : null}
       <AlertDialog open={target !== null} onOpenChange={(open) => { if (!open && !mutation.isPending) setTarget(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>

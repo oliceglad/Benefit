@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link2 } from 'lucide-react'
 import { useCallback } from 'react'
 import { Controller, useForm, useWatch, type Control } from 'react-hook-form'
 
@@ -20,7 +19,7 @@ import {
   SectionFormCard,
 } from '@/features/candidate-profile/ui/section-form-layout'
 import type { ProfileResponse } from '@/shared/api/generated/candidates/models'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { FspPanel } from '@/features/candidate-profile/ui/fsp-panel'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Input } from '@/shared/ui/input'
 import { Label } from '@/shared/ui/label'
@@ -175,13 +174,7 @@ export function PreferencesForm({
           <p className="text-xs leading-5 text-muted-foreground">Контакты открываются работодателю только после принятого приглашения или вашего отклика — они не управляются этими настройками.</p>
         </fieldset>
 
-        {profile.fsp.linked ? (
-          <Alert>
-            <Link2 className="size-4" aria-hidden="true" />
-            <AlertTitle>Профиль ФСП связан</AlertTitle>
-            <AlertDescription>{profile.fsp.achievements.length > 0 ? `Достижений: ${profile.fsp.achievements.length}.` : 'Достижения пока не получены.'} Синхронизация и изменение подтверждённых данных выполняются отдельно.</AlertDescription>
-          </Alert>
-        ) : null}
+        <FspPanel fsp={profile.fsp} disabled={form.formState.isDirty || save.isPending} />
 
         <SectionActions dirty={form.formState.isDirty} pending={save.isPending} hasNext={!standalone} onSave={() => void saveForm().then((ok) => { if (ok && standalone) onContinue() })} onSaveAndContinue={() => void saveForm().then((ok) => { if (ok) onContinue() })} />
       </form>

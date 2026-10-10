@@ -1,4 +1,5 @@
 import { Award, BadgeCheck, ChevronDown, ExternalLink, LockKeyhole, MapPin } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 import { candidateAchievements, candidateSkills, dateLabel, experienceLabel, publicAchievementUrl } from '@/features/talent/model/candidate-presentation'
 import { formatLabels, gradeLabels, roleLabels } from '@/features/talent/model/talent-search'
@@ -12,7 +13,7 @@ const achievementResults: Record<string, string> = { winner: 'Победител
 const searchStatuses: Record<string, string> = { active: 'Активно ищет работу', open: 'Рассматривает предложения', not_looking: 'Сейчас не ищет работу' }
 const skillLevels: Record<string, string> = { beginner: 'Базовый', intermediate: 'Средний', advanced: 'Продвинутый', expert: 'Эксперт' }
 
-export function TalentCandidateCard({ candidate, match, open, onOpenChange }: { candidate: CandidateCard; match?: MatchedCandidate; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function TalentCandidateCard({ candidate, match, open, onOpenChange, actions }: { candidate: CandidateCard; match?: MatchedCandidate; open: boolean; onOpenChange: (open: boolean) => void; actions?: ReactNode }) {
   const skills = candidateSkills(candidate.skills)
   const achievements = candidateAchievements(candidate.fsp_achievements)
   const confirmed = candidate.category.grade_status === 'confirmed'
@@ -64,6 +65,7 @@ export function TalentCandidateCard({ candidate, match, open, onOpenChange }: { 
               })}</ul> : <p className="rounded-lg bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">{candidate.fsp_count > 0 ? 'Сервер сообщил о достижениях, но их подробности пока не предоставлены.' : 'Подтверждённых достижений ФСП в доступных данных нет. Кандидат может не иметь истории участия или скрыть её в настройках профиля.'}</p>}
             </section>
             <p className="flex items-start gap-2 border-t pt-4 text-xs leading-5 text-muted-foreground"><LockKeyhole size={15} className="mt-0.5 shrink-0" aria-hidden="true" />Контакты открываются после принятия приглашения или отклика кандидата.</p>
+            {actions}
           </div>
         </CollapsibleContent>
       </article>

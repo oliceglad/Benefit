@@ -9,13 +9,14 @@ import { NeedEditor } from '@/features/talent/ui/need-editor'
 import { NeedMatching } from '@/features/talent/ui/need-matching'
 import { TalentCatalog } from '@/features/talent/ui/talent-catalog'
 import type { NeedResponse } from '@/shared/api/generated/employers/models'
+import type { CandidateCard } from '@/shared/api/generated/talent/models'
 import { RequestError } from '@/shared/api/ui/request-error'
 import { useSession } from '@/shared/session/session'
 import { Button } from '@/shared/ui/button'
 import { Label } from '@/shared/ui/label'
 import { Spinner } from '@/shared/ui/spinner'
 
-export function TalentPage({ prepareNewNeed }: { prepareNewNeed: (form: ReactNode, onCancel: () => void) => ReactNode }) {
+export function TalentPage({ prepareNewNeed, candidateActions }: { prepareNewNeed: (form: ReactNode, onCancel: () => void) => ReactNode; candidateActions?: (candidate: CandidateCard, need?: NeedResponse) => ReactNode }) {
   const search = talentSearchSchema.parse(useSearch({ strict: false }))
   const navigate = useNavigate()
   const userId = useSession().user?.id
@@ -43,7 +44,7 @@ export function TalentPage({ prepareNewNeed }: { prepareNewNeed: (form: ReactNod
         {needs.isError ? <div className="w-full"><RequestError error={needs.error} onRetry={() => { void needs.refetch() }} /></div> : null}
         {needs.data?.length === 0 && !editorMode ? <p className="w-full text-xs leading-5 text-muted-foreground">Сохраните требования команды — сравним профили по навыкам, грейду, опыту и достижениям ФСП.</p> : null}
       </section>
-      {editorMode === 'new' ? prepareNewNeed(form, () => setEditor(null)) : search.need && selected.isPending ? <Spinner label="Загружаем условия подбора…" /> : search.need && selected.isError ? <RequestError error={selected.error} onRetry={() => { void selected.refetch() }} /> : editorMode === 'edit' && selected.data ? form : search.need && selected.data ? <NeedMatching need={selected.data} onEdit={() => setEditor({ mode: 'edit', needId: search.need })} /> : <TalentCatalog />}
+      {editorMode === 'new' ? prepareNewNeed(form, () => setEditor(null)) : search.need && selected.isPending ? <Spinner label="Загружаем условия подбора…" /> : search.need && selected.isError ? <RequestError error={selected.error} onRetry={() => { void selected.refetch() }} /> : editorMode === 'edit' && selected.data ? form : search.need && selected.data ? <NeedMatching need={selected.data} candidateActions={candidateActions} onEdit={() => setEditor({ mode: 'edit', needId: search.need })} /> : <TalentCatalog candidateActions={candidateActions} />}
     </section>
   )
 }

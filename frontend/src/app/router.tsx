@@ -13,7 +13,7 @@ import { restoreAccountSession } from '@/features/auth/api/auth'
 import { LoginPage } from '@/features/auth/ui/login-page'
 import { RegisterPage } from '@/features/auth/ui/register-page'
 import { VerifyEmailPage } from '@/features/auth/ui/verify-email-page'
-import { isProfileSectionId } from '@/features/candidate-profile/model/profile-sections'
+import { isProfileSectionId, type ProfileSectionId } from '@/features/candidate-profile/model/profile-sections'
 import { ProfilePage } from '@/features/candidate-profile/ui/profile-page'
 import { AssessmentAttemptPage } from '@/features/candidate-profile/ui/assessment-attempt-page'
 import { AssessmentPage } from '@/features/candidate-profile/ui/assessment-page'
@@ -23,6 +23,7 @@ import { PublicationConsentPage } from '@/features/legal/ui/publication-consent-
 import { TermsPage } from '@/features/legal/ui/terms-page'
 import { vacancySearchSchema } from '@/features/vacancies/model/vacancy-search'
 import { talentSearchSchema } from '@/features/talent/model/talent-search'
+import { messagesSearchSchema } from '@/features/invitations/model/messages-search'
 import { session } from '@/shared/session/session'
 
 const rootRoute = createRootRoute({ component: Outlet })
@@ -45,8 +46,13 @@ async function hasAccountSession(ignoreRestoreError = false): Promise<boolean> {
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: async () => {
+  validateSearch: (search: Record<string, unknown>): { linked?: 'fsp_id' } => ({ linked: search.linked === 'fsp_id' ? 'fsp_id' : undefined }),
+  beforeLoad: async ({ search }) => {
     if (await hasAccountSession(true)) {
+      if (search.linked === 'fsp_id' && session.getSnapshot().user?.role === 'candidate') {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error
+        throw redirect({ to: '/profile', search: { section: 'preferences', linked: 'fsp_id' }, replace: true })
+      }
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw homeRedirect()
     }
@@ -146,7 +152,7 @@ const cabinetLayoutRoute = createRoute({
 const vacanciesRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/vacancies',
   validateSearch: (search: Record<string, unknown>) => vacancySearchSchema.parse(search),
-  component: lazyRouteComponent(() => import('@/features/vacancies/ui/vacancies-page'), 'VacanciesPage'),
+  component: lazyRouteComponent(() => import('@/app/pages/vacancies-page'), 'VacanciesPage'),
 })
 const vacancyDetailRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/$vacancyId',
@@ -154,7 +160,8 @@ const vacancyDetailRoute = createRoute({
 })
 const messagesRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/messages',
-  component: lazyRouteComponent(() => import('@/features/chat/ui/messages-page'), 'MessagesPage'),
+  validateSearch: (search: Record<string, unknown>) => messagesSearchSchema.parse(search),
+  component: lazyRouteComponent(() => import('@/app/pages/messages-page'), 'MessagesPage'),
 })
 const messageThreadRoute = createRoute({
   getParentRoute: () => messagesRoute, path: '/$conversationId',
@@ -201,8 +208,9 @@ const pipelineDesignPreviewRoute = import.meta.env.DEV ? createRoute({
 const profileRoute = createRoute({
   getParentRoute: () => candidateLayoutRoute,
   path: '/profile',
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { section: ProfileSectionId | undefined; linked?: 'fsp_id' } => ({
     section: isProfileSectionId(search.section) ? search.section : undefined,
+    linked: search.linked === 'fsp_id' ? 'fsp_id' : undefined,
   }),
   component: ProfilePage,
 })

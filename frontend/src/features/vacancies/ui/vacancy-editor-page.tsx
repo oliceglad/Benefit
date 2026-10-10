@@ -21,6 +21,7 @@ import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
 import { Spinner } from '@/shared/ui/spinner'
 import { Textarea } from '@/shared/ui/textarea'
+import { publicationSalaryError } from '@/shared/lib/salary-range'
 
 export function VacancyEditorPage() {
   const { vacancyId } = useParams({ strict: false })
@@ -62,7 +63,15 @@ function VacancyEditor({ vacancy, companyName }: { vacancy?: VacancyResponse; co
       })
     },
   })
-  const save = form.handleSubmit((input) => mutation.mutate(input), () => setPreview(false))
+  const save = form.handleSubmit((input) => {
+    const issue = vacancy?.status === 'published' ? publicationSalaryError(vacancyPayload(input)) : null
+    if (issue) {
+      form.setError(input.currency !== 'RUB' ? 'currency' : !input.salary_from ? 'salary_from' : 'salary_to', { message: issue }, { shouldFocus: true })
+      setPreview(false)
+      return
+    }
+    mutation.mutate(input)
+  }, () => setPreview(false))
   const errors = form.formState.errors
   const descriptionCount = values.description?.length ?? 0
   const readiness = [Boolean(values.title?.trim()), Boolean(values.description?.trim()), Boolean(values.skills?.trim())]
@@ -125,7 +134,7 @@ function VacancyEditor({ vacancy, companyName }: { vacancy?: VacancyResponse; co
                       {(props) => <Input {...props} className="rounded-md uppercase" maxLength={3} {...form.register('currency')} />}
                     </VacancyFormField>
                   </div>
-                  <p className="text-xs text-muted-foreground">Если зарплата пока не определена, оставьте обе границы пустыми.</p>
+                  <p className="text-xs text-muted-foreground">В черновике зарплату можно не заполнять. Для публикации обязательны обе границы в рублях (RUB).</p>
                 </section>
                 <section className="space-y-5 rounded-xl border bg-card p-6 shadow-card">
                   <FormSectionTitle number="03" title="Задачи и ожидания" description="Расскажите о команде, задачах, требованиях и том, что предлагаете." />
