@@ -609,6 +609,95 @@ class Smoke:
         assert mine[0]["status"] == "invited"
         self.ok("вакансия опубликована, кандидат откликнулся, работодатель пригласил")
 
+        self.step("Процесс найма (applications → chat, notifications)")
+        [process] = self.check(
+            self.http.get(
+                "/api/v1/hiring/processes",
+                params={"vacancy_id": vacancy["id"]},
+                headers=employer,
+            )
+        )
+        # Приглашение на собеседование по отклику сдвинуло этап.
+        assert (process["source_id"], process["stage"]) == (
+            application["id"],
+            "interview",
+        )
+        pid = process["id"]
+        lead = self.check(
+            self.http.post(
+                "/api/v1/hiring/team",
+                json={"full_name": "Пётр Тимлид", "position": "Team Lead"},
+                headers=employer,
+            ),
+            201,
+        )
+        self.check(
+            self.http.put(
+                f"/api/v1/hiring/processes/{pid}/responsible",
+                json={"responsible_id": lead["id"]},
+                headers=employer,
+            )
+        )
+        when = (datetime.now(UTC) + timedelta(days=3)).isoformat()
+        self.check(
+            self.http.post(
+                f"/api/v1/hiring/processes/{pid}/interviews",
+                json={
+                    "scheduled_at": when,
+                    "interviewer_ids": [lead["id"]],
+                    "location": "https://meet.example.ru/benefit",
+                },
+                headers=employer,
+            ),
+            201,
+        )
+        detail = self.check(
+            self.http.post(
+                f"/api/v1/hiring/processes/{pid}/offers",
+                json={"salary": 450000, "message": "Ждём в команде"},
+                headers=employer,
+            ),
+            201,
+        )
+        offer_id = detail["offers"][0]["id"]
+        self.wait_for(
+            "оффер в уведомлениях кандидата",
+            lambda: [
+                n
+                for n in self.check(
+                    self.http.get("/api/v1/notifications", headers=candidate)
+                )["items"]
+                if n["type"] == "hiring.offer_sent"
+            ],
+        )
+        hired = self.check(
+            self.http.post(
+                f"/api/v1/hiring/my/{pid}/offers/{offer_id}/accept",
+                json={"message": "Принимаю"},
+                headers=candidate,
+            )
+        )
+        assert (hired["stage"], hired["status"]) == ("hired", "hired")
+        conversation = next(
+            c
+            for c in self.check(
+                self.http.get("/api/v1/chat/conversations", headers=employer)
+            )
+            if c["invitation_id"] == application["id"]
+        )
+
+        def offer_in_chat() -> list[dict[str, Any]]:
+            messages = self.check(
+                self.http.get(
+                    f"/api/v1/chat/conversations/{conversation['id']}/messages",
+                    headers=candidate,
+                )
+            )
+            return [m for m in messages if "Принимаю" in (m["text"] or "")]
+
+        self.wait_for("принятый оффер в переписке", offer_in_chat)
+        self.ok("этапы, интервью, ответственный и оффер; кандидат нанят")
+
         self.step("Токены в cookie (auth → все сервисы, CSRF, WebSocket)")
         preflight = self.http.options(
             "/api/v1/candidates/me",

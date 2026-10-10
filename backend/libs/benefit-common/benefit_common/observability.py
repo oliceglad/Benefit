@@ -88,18 +88,6 @@ class RequestContextMiddleware:
             service_name_var.reset(service_token)
 
 
-def _hide_docs(app: FastAPI) -> None:
-    """В production схема API и Swagger не публикуются."""
-    docs_paths = {app.docs_url, app.redoc_url, app.openapi_url}
-    docs_paths |= {f"{path}/oauth2-redirect" for path in docs_paths if path}
-    app.router.routes = [
-        route
-        for route in app.router.routes
-        if getattr(route, "path", None) not in docs_paths
-    ]
-    app.openapi_url = app.docs_url = app.redoc_url = None
-
-
 def setup_app(app: FastAPI, service: str) -> None:
     """Единые обработчики ошибок и сквозной request_id для сервиса.
 
@@ -107,8 +95,7 @@ def setup_app(app: FastAPI, service: str) -> None:
     сервис не запустится.
     """
     service_name_var.set(service)
-    settings = get_common_settings()
+    # Валидация настроек: в production небезопасная конфигурация — ошибка.
+    get_common_settings()
     register_exception_handlers(app)
     app.add_middleware(RequestContextMiddleware, service=service)
-    if settings.is_production:
-        _hide_docs(app)

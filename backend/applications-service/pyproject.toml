@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "benefit-common",
     "fastapi>=0.115",
+    "pydantic[email]>=2.9",
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
     "sqlalchemy[asyncio]>=2.0.36",

@@ -14,11 +14,12 @@ from benefit_common.security import Principal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Application, ApplicationStatus, OutboxMessage
+from app.models import Application, ApplicationStatus, HiringSource, OutboxMessage
 from app.schemas.application import ApplicationCreate, ApplicationStatusUpdate
 from app.services.candidates import CandidateDirectory
 from app.services.delivery import CHAT_SYNC, CONTACT_GRANT, NOTIFICATION
 from app.services.employers import EmployerDirectory
+from app.services.hiring import HiringService
 from app.services.invitations import format_salary
 
 ACTIVE = (ApplicationStatus.NEW, ApplicationStatus.VIEWED, ApplicationStatus.INVITED)
@@ -49,6 +50,7 @@ class ApplicationService:
         self.session = session
         self.candidates = candidates
         self.employers = employers
+        self.hiring = HiringService(session)
 
     async def apply(self, candidate: Principal, data: ApplicationCreate) -> Application:
         vacancy = await self.employers.vacancy(data.vacancy_id)
@@ -82,6 +84,17 @@ class ApplicationService:
         )
         self.session.add(application)
         await self.session.flush()
+        # Отклик начинает процесс найма (этап «Новый»).
+        await self.hiring.open(
+            source=HiringSource.APPLICATION,
+            source_id=application.id,
+            employer_id=application.employer_id,
+            candidate_id=candidate.id,
+            vacancy_id=str(application.vacancy_id),
+            vacancy_title=application.vacancy_title,
+            company_name=application.company_name,
+            actor_id=candidate.id,
+        )
         # Кандидат откликнулся сам — работодатель видит его контакты.
         enqueue(
             self.session,
@@ -144,6 +157,7 @@ class ApplicationService:
         self._ensure_active(application)
         application.status = ApplicationStatus.WITHDRAWN
         application.status_changed_at = datetime.now(UTC)
+        await self.hiring.on_application_status(application, candidate)
         self._sync_chat(application, "withdrawn", "Кандидат отозвал отклик.")
         self._notify(
             application,
@@ -176,6 +190,7 @@ class ApplicationService:
         application.status = data.status
         application.employer_message = data.message
         application.status_changed_at = datetime.now(UTC)
+        await self.hiring.on_application_status(application, employer)
         text = f"{STATUS_TEXT[data.status]} («{application.vacancy_title}»)."
         if data.message:
             text += f"\n\n{data.message}"

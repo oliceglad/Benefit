@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.models import Invitation, InvitationStatus, OutboxMessage
+from app.models import HiringSource, Invitation, InvitationStatus, OutboxMessage
 from app.schemas.invitation import (
     InvitationCreate,
     InvitationReply,
@@ -25,6 +25,7 @@ from app.schemas.invitation import (
 from app.services.candidates import CandidateDirectory
 from app.services.delivery import CHAT_SYNC, CONTACT_GRANT, NOTIFICATION
 from app.services.employers import EmployerDirectory
+from app.services.hiring import HiringService
 
 CURRENCY_SIGNS = {"RUB": "₽", "USD": "$", "EUR": "€"}
 
@@ -238,6 +239,17 @@ class InvitationService:
         )
         link = None
         if accept:
+            # Принятое приглашение начинает процесс найма.
+            await HiringService(self.session).open(
+                source=HiringSource.INVITATION,
+                source_id=invitation.id,
+                employer_id=invitation.employer_id,
+                candidate_id=invitation.candidate_id,
+                vacancy_id=invitation.vacancy_id,
+                vacancy_title=invitation.vacancy_title,
+                company_name=invitation.company_name,
+                actor_id=candidate.id,
+            )
             # Принятие приглашения открывает работодателю контакты кандидата.
             enqueue(
                 self.session,

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     api_prefix: str = "/api/v1/invitations"
     applications_prefix: str = "/api/v1/applications"
+    hiring_prefix: str = "/api/v1/hiring"
 
     postgres_host: str = "localhost"
     postgres_port: int = 5437

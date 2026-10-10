@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from app.api.internal.router import router as internal_router
 from app.api.v1.endpoints.applications import router as applications_router
+from app.api.v1.endpoints.hiring import router as hiring_router
 from app.api.v1.endpoints.invitations import router as invitations_router
 from app.core.config import settings
 from app.core.logging import SERVICE_NAME, setup_logging
@@ -29,19 +30,18 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    # В production документация API не публикуется.
-    public_docs = settings.app_env != "production"
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
         lifespan=lifespan,
-        docs_url=f"{settings.api_prefix}/docs" if public_docs else None,
+        docs_url=f"{settings.api_prefix}/docs",
         redoc_url=None,
-        openapi_url=f"{settings.api_prefix}/openapi.json" if public_docs else None,
+        openapi_url=f"{settings.api_prefix}/openapi.json",
     )
     setup_app(app, SERVICE_NAME)
     app.include_router(invitations_router, prefix=settings.api_prefix)
     app.include_router(applications_router, prefix=settings.applications_prefix)
+    app.include_router(hiring_router, prefix=settings.hiring_prefix)
     app.include_router(internal_router)
     return app
 

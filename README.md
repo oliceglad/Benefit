@@ -19,7 +19,7 @@ benefit/
 │   ├── auth-service/        # регистрация, вход, токены, RBAC
 │   ├── candidate-service/   # личный кабинет кандидата: профиль, резюме, PDF
 │   ├── assessment-service/  # опрос и тестирование: подтверждение грейда
-│   ├── applications-service/# приглашения работодателей (позже — отклики)
+│   ├── applications-service/# приглашения, отклики, процесс найма
 │   ├── notification-service/# уведомления в кабинете + дублирование на почту
 │   ├── chat-service/        # переписка (WebSocket), файлы, регулярные задания
 │   ├── employer-service/    # профиль компании, потребности, вакансии
@@ -65,7 +65,8 @@ assessment-service, `/api/v1/invitations*` → applications-service,
 `/api/v1/notifications*` → notification-service, `/api/v1/chat/*` (включая
 WebSocket `/api/v1/chat/ws`) → chat-service, `/api/v1/employers/*` и
 `/api/v1/vacancies*` → employer-service, `/api/v1/talent/*` → matching-service,
-`/api/v1/applications*` → applications-service, всё остальное → core.
+`/api/v1/applications*` и `/api/v1/hiring/*` → applications-service, всё
+остальное → core.
 Внутренние API сервисов (`/internal/*`) через шлюз недоступны.
 
 Ограничение частоты запросов (по IP): `login`, `register`, `verify-email`,
@@ -475,6 +476,57 @@ GET  /api/v1/notifications                     уведомления текущ
 приватности открыть контакты всем нельзя. В поиске и подборке контактов нет
 вообще. Доступ сохраняется, даже если кандидат позже снимет профиль с
 публикации.
+
+## Процесс найма (applications-service)
+
+Процесс найма — карточка «кандидат × вакансия» со своими этапами,
+ответственным, интервью, офферами и историей. Создаётся автоматически, когда
+кандидат **откликается** на вакансию или **принимает приглашение**.
+
+Этапы по порядку: `new` → `screening` → `interview` → `assessment` → `offer` →
+`hired`. Статус процесса: `active`, `hired`, `rejected`, `withdrawn`.
+Работодатель переводит кандидата между этапами вперёд и назад. Назначение
+интервью и отправка оффера сами сдвигают этап. В `hired` процесс переходит
+только при **принятии оффера** кандидатом.
+
+```
+GET   /api/v1/hiring/dictionaries                              подписи этапов, статусов, типов событий
+GET   /api/v1/hiring/team                                      работодатель: команда (ответственные, интервьюеры)
+POST  /api/v1/hiring/team                                      {full_name, position?, email?}
+PATCH /api/v1/hiring/team/{id}                                 изменить; is_active=false — убрать из команды
+GET   /api/v1/hiring/processes                                 воронка (?status, stage, vacancy_id, responsible_id, candidate_id)
+GET   /api/v1/hiring/processes/{id}                            карточка: интервью, офферы, полная история
+POST  /api/v1/hiring/processes/{id}/stage                      {stage, comment?}
+PUT   /api/v1/hiring/processes/{id}/responsible                {responsible_id | null}
+POST  /api/v1/hiring/processes/{id}/comments                   внутренняя заметка {text}
+POST  /api/v1/hiring/processes/{id}/reject                     {reason? (внутренняя), message? (кандидату)}
+POST  /api/v1/hiring/processes/{id}/interviews                 {kind, scheduled_at, duration_minutes, format, location, interviewer_ids, note_for_candidate}
+PATCH /api/v1/hiring/processes/{id}/interviews/{iid}           перенос / изменение
+POST  /api/v1/hiring/processes/{id}/interviews/{iid}/cancel    {message?}
+POST  /api/v1/hiring/processes/{id}/interviews/{iid}/result    {status: completed|no_show, rating 1–5, feedback}
+POST  /api/v1/hiring/processes/{id}/offers                     {salary, currency, salary_type, start_date, …, expires_in_days}
+POST  /api/v1/hiring/processes/{id}/offers/{oid}/withdraw
+GET   /api/v1/hiring/my                                        кандидат: мои процессы
+GET   /api/v1/hiring/my/{id}
+POST  /api/v1/hiring/my/{id}/offers/{oid}/accept|decline       {message?}
+POST  /api/v1/hiring/my/{id}/withdraw                          выйти из процесса {message?}
+```
+
+- **Ответственные и интервьюеры** — сотрудники из команды работодателя
+  (`/hiring/team`). Это справочник людей, а не отдельные аккаунты: у компании
+  по-прежнему один вход.
+- **История** пишется по каждому действию: кто (`actor_role`: employer,
+  candidate, system), когда, что изменилось (`data`) и комментарий.
+  Кандидат видит только свою часть истории. Заметки, оценки интервью, причину
+  отказа и смену ответственного он не видит.
+- **Оффер:** ждать ответа может только один оффер. Без ответа он истекает
+  через `expires_in_days`.
+- **Завершение процесса.** При отказе, выходе кандидата или найме назначенные
+  интервью отменяются, а ожидающий оффер отзывается. Отказ и выход закрывают
+  переписку и отклик, с которого начался процесс. Смена статуса отклика
+  (`invited`, `rejected`, `withdrawn`) тоже отражается в процессе.
+- Интервью, оффер, ответ на оффер, отказ и выход приходят второй стороне
+  уведомлением и письмом и дублируются системным сообщением в переписку.
 
 ## Переписка и регулярные задания (chat-service)
 
