@@ -162,7 +162,7 @@ documented in [chat.md](chat.md). Task execution and assessment flows are unchan
 
 ## Candidate bank — 2026-10-11
 
-`pasha` incorporates `origin/main` at `898f1c3`. The new committed matching-service
+`pasha` incorporates `origin/main` at `03fcf82`. The new committed matching-service
 OpenAPI snapshot was read from the running local gateway. Orval generates the
 `talent` client using the same cookie/CSRF transport and 15-second request timeout.
 
