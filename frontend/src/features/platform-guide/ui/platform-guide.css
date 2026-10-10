@@ -1,0 +1,84 @@
+.platform-guide__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin-left: -6px;
+  padding: 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 160ms;
+}
+.platform-guide__trigger:hover, .platform-guide__trigger[data-state="open"] { background: var(--muted); }
+.platform-guide__trigger:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 40%, transparent); }
+.platform-guide {
+  position: fixed;
+  inset: 0;
+  width: min(880px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--card-foreground);
+  box-shadow: 0 24px 90px rgb(15 35 70 / 20%);
+}
+.platform-guide[open] { animation: guide-open 300ms ease-out both; }
+.platform-guide::backdrop { background: rgb(22 38 62 / 32%); backdrop-filter: blur(7px); animation: guide-backdrop 250ms ease-out both; }
+.platform-guide__layout { display: grid; grid-template-columns: 0.85fr 1.15fr; min-height: 570px; }
+.platform-guide__art { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 30px 22px; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--primary) 6%, var(--card)); }
+.platform-guide__art-label { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 10px; }
+.platform-guide__scene { position: relative; width: 100%; aspect-ratio: 360 / 330; }
+.platform-guide__branches { width: 100%; height: 100%; color: var(--primary); }
+.platform-guide__track path { stroke-dasharray: 760; stroke-dashoffset: 760; animation: guide-draw 850ms cubic-bezier(.22, 1, .36, 1) forwards; }
+.platform-guide__track path:nth-child(2) { animation-delay: 60ms; }
+.platform-guide__track path:nth-child(3) { animation-delay: 130ms; }
+.platform-guide__nodes { animation: guide-copy 450ms 160ms both; }
+.platform-guide__red-node { stroke: var(--destructive); }
+.platform-guide__art-card { position: absolute; display: flex; align-items: center; gap: 10px; max-width: 78%; padding: 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); color: var(--foreground); box-shadow: 0 8px 22px rgb(24 62 115 / 7%); font-size: 12px; font-weight: 500; line-height: 1.5; animation: guide-card 500ms cubic-bezier(.22, 1, .36, 1) both; }
+.platform-guide__art-card--0 { left: 22%; top: 12%; animation-delay: 100ms; }
+.platform-guide__art-card--1 { right: 1%; top: 42%; animation-delay: 200ms; }
+.platform-guide__art-card--2 { left: 22%; top: 72%; animation-delay: 300ms; }
+.platform-guide__art-icon { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 7px; color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--card)); }
+.platform-guide__art-card--2 .platform-guide__art-icon { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 5%, var(--card)); }
+.platform-guide__art-caption { padding-left: 9px; font-size: 17px; font-weight: 600; line-height: 1.6; }
+.platform-guide__art-caption span { font-size: 13px; font-weight: 400; color: var(--muted-foreground); }
+.platform-guide__body { display: flex; flex-direction: column; min-width: 0; padding: 30px 34px 24px; }
+.platform-guide__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--muted-foreground); font-size: 12px; }
+.platform-guide__top > span { padding-top: 5px; }
+.platform-guide__copy { flex: 1; padding: 20px 0 28px; animation: guide-copy 300ms ease-out both; }
+.platform-guide__eyebrow { margin-bottom: 14px; color: var(--primary); font-size: 12px; font-weight: 500; }
+.platform-guide__copy h2 { font-size: clamp(25px, 3vw, 31px); font-weight: 600; letter-spacing: -.025em; line-height: 1.15; outline: none; }
+.platform-guide__description { margin-top: 20px; color: var(--muted-foreground); font-size: 14px; line-height: 1.8; }
+.platform-guide__points { display: grid; gap: 14px; margin-top: 24px; }
+.platform-guide__points li { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; line-height: 1.8; }
+.platform-guide__points li > span { display: grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--card)); }
+.platform-guide__footer { border-top: 1px solid var(--border); padding-top: 20px; }
+.platform-guide__progress { display: flex; gap: 5px; }
+.platform-guide__progress li { flex: 1; }
+.platform-guide__progress button { display: flex; align-items: center; width: 100%; height: 24px; border-radius: 4px; cursor: pointer; outline: none; }
+.platform-guide__progress button:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.platform-guide__progress span { width: 100%; height: 3px; border-radius: 3px; background: var(--border); transition: background-color 200ms; }
+.platform-guide__progress [data-complete="true"] span { background: color-mix(in srgb, var(--primary) 30%, var(--card)); }
+.platform-guide__progress [aria-current="step"] span { background: var(--primary); }
+.platform-guide__actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.platform-guide__replay { margin-top: 18px; text-align: center; color: var(--muted-foreground); font-size: 10px; line-height: 1.6; }
+@keyframes guide-open { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes guide-backdrop { from { opacity: 0; } to { opacity: 1; } }
+@keyframes guide-draw { to { stroke-dashoffset: 0; } }
+@keyframes guide-card { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes guide-copy { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 740px) {
+  .platform-guide__layout { grid-template-columns: 1fr; min-height: auto; }
+  .platform-guide__art { display: none; }
+  .platform-guide__body { padding: 22px; }
+  .platform-guide__copy { min-height: 280px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .platform-guide, .platform-guide::backdrop, .platform-guide *, .platform-guide__trigger { animation: none !important; transition: none !important; }
+  .platform-guide__track path { stroke-dashoffset: 0; }
+}

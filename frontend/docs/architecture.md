@@ -192,3 +192,14 @@ and hide-contacted. Need ID and expanded candidate survive reload through URL
 state. Generated generic response dictionaries are checked by a feature-local
 Zod schema before rendering. Dirty form state is subscribed during render and
 used by both local cancel confirmation and the router blocker.
+
+## Optional platform guide
+
+`features/platform-guide` owns a role-specific, manually launched introduction.
+The employer and candidate layouts compose `BrandGuide` in place of the static
+header logo. Clicking it opens the existing Radix menu; only its explicit guide
+item mounts the native modal dialog. There is no automatic launch or persisted
+completion state and no dependency on profile onboarding or generated APIs.
+The underlying route stays mounted, preserving unsaved forms and search state.
+CSS/SVG animations respect reduced motion; keyboard focus is contained in the
+dialog and restored to the trigger on close. See [platform-guide.md](platform-guide.md).

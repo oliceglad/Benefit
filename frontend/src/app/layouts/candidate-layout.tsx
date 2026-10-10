@@ -12,8 +12,8 @@ import { profileDraft, useProfileDraft } from '@/features/candidate-profile/mode
 import { isProfileSectionId } from '@/features/candidate-profile/model/profile-sections'
 import { CandidateAvatar } from '@/features/candidate-profile/ui/candidate-avatar'
 import { UnsavedChangesDialog } from '@/features/candidate-profile/ui/unsaved-changes-dialog'
+import { BrandGuide } from '@/features/platform-guide/ui/brand-guide'
 import { useSession } from '@/shared/session/session'
-import { BrandLogo } from '@/shared/ui/brand-logo'
 import { Button } from '@/shared/ui/button'
 import {
   DropdownMenu,
@@ -85,7 +85,7 @@ export function CandidateLayout() {
       <header className={`border-b bg-card/92 backdrop-blur ${mobileProfileSection ? 'hidden lg:block' : ''}`}>
         <div className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <BrandLogo className="h-7 shrink-0 sm:h-8" />
+            <BrandGuide role="candidate" className="shrink-0" />
             <p className="hidden truncate text-xs text-muted-foreground sm:block">Кабинет кандидата</p>
           </div>
 
