@@ -2,7 +2,8 @@
 
 Точки интеграции для будущих сервисов:
 * подбор вакансий (matching-service) — снимки профилей и лента событий;
-* тестирование по грейду (assessment-service) — запись подтверждённого грейда.
+* тестирование по грейду (assessment-service) — запись подтверждённого грейда;
+* тесты на навыки (assessment-service) — подтверждённые уровни навыков.
 
 Через шлюз не публикуется; защищён межсервисным токеном.
 """
@@ -58,6 +59,28 @@ class AssessmentResult(BaseModel):
     attempt_id: uuid.UUID | None = None
     test_title: str | None = None
     percent: float | None = None
+
+
+class SkillVerificationLevel(BaseModel):
+    id: str = Field(max_length=16)
+    title: str = Field(max_length=100)
+    min_percent: float | None = None
+
+
+class SkillVerification(BaseModel):
+    level: SkillVerificationLevel
+    verified_at: datetime
+    valid_until: datetime
+    attempt_id: uuid.UUID
+    percent: float
+    test_title: str = Field(max_length=200)
+
+
+class SkillVerificationRequest(BaseModel):
+    """Лучший действующий уровень навыка; ``None`` — подтверждения нет."""
+
+    skill: str = Field(min_length=1, max_length=64)
+    verification: SkillVerification | None = None
 
 
 class ContactGrantRequest(BaseModel):
@@ -170,6 +193,50 @@ async def set_assessment_result(
             "specialization": data.specialization,
             "industry": profile.industry,
             "attempt_id": str(data.attempt_id) if data.attempt_id else None,
+        },
+    )
+    await session.commit()
+    await session.refresh(profile)
+    return _snapshot(profile)
+
+
+@router.put(
+    "/candidates/{user_id}/skill-verifications", response_model=CandidateSnapshot
+)
+async def set_skill_verification(
+    user_id: uuid.UUID,
+    data: SkillVerificationRequest,
+    service: ProfileServiceDep,
+    session: SessionDep,
+) -> CandidateSnapshot:
+    """Подтверждённый тестом уровень навыка (английский, SQL, Git…).
+
+    Идемпотентно: запись по навыку заменяется целиком.
+    """
+    profile = await service.get(user_id)
+    others = [
+        item
+        for item in profile.verified_skills or []
+        if item["skill"].lower() != data.skill.lower()
+    ]
+    if data.verification is not None:
+        others.append(
+            {
+                "skill": data.skill,
+                **data.verification.model_dump(mode="json", exclude={"level"}),
+                "level": data.verification.level.model_dump(
+                    mode="json", include={"id", "title"}
+                ),
+            }
+        )
+    profile.verified_skills = sorted(others, key=lambda item: item["skill"].lower())
+    record_event(
+        session,
+        user_id,
+        EventType.SKILL_VERIFIED,
+        {
+            "skill": data.skill,
+            "level": data.verification.level.id if data.verification else None,
         },
     )
     await session.commit()

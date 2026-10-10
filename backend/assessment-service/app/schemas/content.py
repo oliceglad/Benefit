@@ -11,7 +11,7 @@ from typing import Annotated, Literal, Self
 from benefit_common.dictionaries import Grade, ITRole
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from app.models import TaskKind
+from app.models import AssessmentKind, TaskKind
 
 Key = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")]
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -59,8 +59,24 @@ class TaskIn(BaseModel):
         return self
 
 
+class SkillLevel(BaseModel):
+    """Ступень шкалы теста на навык: уровень засчитывается от ``min_percent``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{0,15}$")]
+    title: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+    ]
+    min_percent: float = Field(gt=0, le=100)
+
+
 class TestIn(BaseModel):
-    """Тест целиком: метаданные и банк задач."""
+    """Тест целиком: метаданные и банк задач.
+
+    ``kind=grade`` — тест на грейд (нужны ``specialization`` и ``grade``),
+    ``kind=skill`` — тест на навык (нужны ``skill`` и шкала ``levels``).
+    """
 
     __test__ = False  # не тестовый класс для pytest
     model_config = ConfigDict(extra="forbid")
@@ -70,8 +86,16 @@ class TestIn(BaseModel):
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
     ]
     description: str = Field(default="", max_length=4000)
-    specialization: ITRole
-    grade: Grade
+    kind: AssessmentKind = AssessmentKind.GRADE
+    specialization: ITRole | None = None
+    grade: Grade | None = None
+    skill: (
+        Annotated[
+            str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)
+        ]
+        | None
+    ) = None
+    levels: list[SkillLevel] = Field(default_factory=list, max_length=10)
     time_limit_seconds: int = Field(ge=60, le=4 * 3600)
     tasks_per_attempt: int = Field(ge=1, le=100)
     is_active: bool = True
@@ -89,19 +113,57 @@ class TestIn(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _check_kind(self) -> Self:
+        if self.kind == AssessmentKind.GRADE:
+            if self.specialization is None or self.grade is None:
+                raise ValueError("Тесту на грейд нужны specialization и grade")
+            if self.skill is not None or self.levels:
+                raise ValueError("skill и levels задаются только тесту на навык")
+            return self
+        if not self.skill or not self.levels:
+            raise ValueError("Тесту на навык нужны skill и шкала levels")
+        if self.specialization is not None or self.grade is not None:
+            raise ValueError("У теста на навык нет specialization и grade")
+        ids = [level.id for level in self.levels]
+        if len(ids) != len(set(ids)):
+            raise ValueError("id уровней должны быть уникальны")
+        thresholds = [level.min_percent for level in self.levels]
+        if thresholds != sorted(set(thresholds)):
+            raise ValueError("Уровни перечисляются по возрастанию min_percent")
+        return self
+
 
 class TestPack(BaseModel):
     __test__ = False
     format_version: Literal[1] = 1
     tests: list[TestIn] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _check_unique(self) -> Self:
+        seen: dict[tuple[str, ...], str] = {}
+        for test in self.tests:
+            if not test.is_active:
+                continue
+            key = (
+                (test.kind, str(test.specialization), str(test.grade))
+                if test.kind == AssessmentKind.GRADE
+                else (test.kind, (test.skill or "").lower())
+            )
+            if key in seen:
+                raise ValueError(f"{test.slug}: дублирует активный тест {seen[key]}")
+            seen[key] = test.slug
+        return self
+
 
 class AdminTestSummary(BaseModel):
     id: uuid.UUID
     slug: str
     title: str
-    specialization: ITRole
-    grade: Grade
+    kind: AssessmentKind
+    specialization: ITRole | None
+    grade: Grade | None
+    skill: str | None
     is_active: bool
     tasks_total: int
     tasks_active: int

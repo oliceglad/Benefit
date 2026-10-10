@@ -87,6 +87,22 @@ class Language(BaseModel):
     level: LanguageLevel
 
 
+class VerifiedSkillLevel(BaseModel):
+    id: str
+    title: str
+
+
+class VerifiedSkill(BaseModel):
+    """Уровень навыка, подтверждённый тестом платформы (английский, SQL…)."""
+
+    skill: str
+    level: VerifiedSkillLevel
+    verified_at: datetime
+    valid_until: datetime
+    percent: float
+    test_title: str
+
+
 class Link(BaseModel):
     type: LinkType
     url: Url
@@ -358,6 +374,8 @@ class ProfileData(BaseModel):
     skills: list[Skill]
     soft_skills: list[str]
     languages: list[Language]
+    # Подтверждённые тестами уровни навыков (действующие).
+    verified_skills: list[VerifiedSkill]
     experience: list[Experience]
     education: list[Education]
     courses: list[Course]

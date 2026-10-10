@@ -1,6 +1,7 @@
 """ORM-модели assessment-service.
 
-* ``Assessment`` — тест для пары «специализация + грейд» с банком задач;
+* ``Assessment`` — тест с банком задач: на грейд (пара «специализация +
+  грейд») или на навык (английский, SQL, Git… — уровень по шкале теста);
 * ``AssessmentTask`` — задача теста (баллы, лимит времени, навыки);
 * ``Attempt`` — попытка кандидата: опрос, время, результат;
 * ``AttemptTask`` — задача в попытке: ответ, баллы, затраченное время.
@@ -24,6 +25,13 @@ class TaskKind(StrEnum):
     SINGLE_CHOICE = "single_choice"
     MULTIPLE_CHOICE = "multiple_choice"
     TEXT = "text"
+
+
+class AssessmentKind(StrEnum):
+    # Подтверждает грейд по специализации.
+    GRADE = "grade"
+    # Подтверждает уровень владения навыком (английский, SQL, Git…).
+    SKILL = "skill"
 
 
 class AttemptStatus(StrEnum):
@@ -55,8 +63,18 @@ class Assessment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String(100), unique=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text)
-    specialization: Mapped[str] = mapped_column(String(32), index=True)
-    grade: Mapped[str] = mapped_column(String(16))
+    kind: Mapped[str] = mapped_column(
+        String(16), default=AssessmentKind.GRADE, server_default=AssessmentKind.GRADE
+    )
+    # Тест на грейд: специализация и грейд. У теста на навык их нет.
+    specialization: Mapped[str | None] = mapped_column(String(32), index=True)
+    grade: Mapped[str | None] = mapped_column(String(16))
+    # Тест на навык: навык и шкала уровней по возрастанию
+    # (``[{"id": "b1", "title": "B1 — Intermediate", "min_percent": 50}]``).
+    skill: Mapped[str | None] = mapped_column(String(64), index=True)
+    levels: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, default=list, server_default="[]"
+    )
     time_limit_seconds: Mapped[int]
     # Сколько задач из банка попадает в одну попытку.
     tasks_per_attempt: Mapped[int]
@@ -106,8 +124,12 @@ class Attempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     assessment_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("assessments.id"), index=True
     )
-    specialization: Mapped[str] = mapped_column(String(32))
-    target_grade: Mapped[str] = mapped_column(String(16))
+    # Тест на грейд: специализация и целевой грейд.
+    specialization: Mapped[str | None] = mapped_column(String(32))
+    target_grade: Mapped[str | None] = mapped_column(String(16))
+    # Тест на навык: навык и подтверждённый уровень (id из шкалы теста).
+    skill: Mapped[str | None] = mapped_column(String(64))
+    confirmed_level: Mapped[str | None] = mapped_column(String(16))
     # Грейд, указанный в резюме на момент начала попытки.
     claimed_grade: Mapped[str | None] = mapped_column(String(16))
     # Ответы на опрос перед тестом (отрасль, специализация, опыт, навыки).
@@ -190,6 +212,7 @@ class OutboxMessage(OutboxMessageMixin, Base):
 
 
 __all__ = [
+    "AssessmentKind",
     "AssignmentStatus",
     "TestAssignment",
     "Assessment",

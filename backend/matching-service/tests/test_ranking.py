@@ -276,3 +276,34 @@ async def test_search_modes(client: AsyncClient, people: dict[str, str]) -> None
         skills=["Python", "Kafka", "Docker"], skills_mode="any", sort="skills"
     )
     assert set(by_skills[:3]) == {"ideal", "strong_unconfirmed", "expensive_senior"}
+
+
+async def test_skill_verified_by_test_counts_fully(
+    client: AsyncClient, source: FakeSource, indexer: Indexer
+) -> None:
+    """English из вакансии: уровень B2, подтверждённый тестом, засчитан,
+    даже если кандидат не указал English в стеке."""
+    verified = document(name="Тестов Проверенный")
+    verified["verified_skills"] = [
+        {
+            "skill": "English",
+            "level": {"id": "b2", "title": "B2 — Upper-Intermediate"},
+            "percent": 78,
+        }
+    ]
+    plain = document(name="Обычный Кандидат", skills=("Python", "PostgreSQL"))
+    ids = {
+        "verified": str(source.publish(verified)),
+        "plain": str(source.publish(plain)),
+    }
+    await indexer.sync_events()
+
+    result = await match(
+        client, required_skills=["Python", "English"], optional_skills=[]
+    )
+
+    assert ranking(result, ids)[0] == "verified"
+    top = by_key(result, ids, "verified")
+    assert top["matched_skills"] == ["Python", "English"]
+    assert "English — подтверждён тестом: B2" in " | ".join(top["reasons"])
+    assert top["candidate"]["verified_skills"][0]["level"] == "b2"

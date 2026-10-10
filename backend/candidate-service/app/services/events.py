@@ -14,6 +14,7 @@ class EventType:
     PROFILE_UNPUBLISHED = "candidate.profile.unpublished"
     PROFILE_DELETED = "candidate.profile.deleted"
     GRADE_VERIFIED = "candidate.grade.verified"
+    SKILL_VERIFIED = "candidate.skill.verified"
     FSP_ACHIEVEMENTS_SYNCED = "candidate.fsp_achievements.synced"
     CONTACTS_SHARED = "candidate.contacts.shared"
     ACTIVITY_RECORDED = "candidate.activity.recorded"

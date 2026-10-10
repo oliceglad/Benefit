@@ -47,6 +47,11 @@ class CandidateIndex(Base):
     skill_experience: Mapped[dict[str, Any]] = mapped_column(
         JSONB, default=dict, server_default="{}"
     )
+    # Уровни, подтверждённые тестами платформы:
+    # {"english": {"skill": "English", "level": "b2", "title": "B2 — …", "percent": 80}}
+    verified_skills: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}"
+    )
     experience_months: Mapped[int]
     work_formats: Mapped[list[str]] = mapped_column(ARRAY(String(16)))
     employment_types: Mapped[list[str]] = mapped_column(ARRAY(String(16)))

@@ -112,6 +112,16 @@ def privacy_of(profile: CandidateProfile) -> PrivacySettings:
     return PrivacySettings.model_validate(profile.privacy or {})
 
 
+def active_skill_verifications(profile: CandidateProfile) -> list[dict[str, Any]]:
+    """Подтверждения навыков, срок действия которых не истёк."""
+    now = datetime.now(UTC)
+    return [
+        item
+        for item in profile.verified_skills or []
+        if datetime.fromisoformat(item["valid_until"]) > now
+    ]
+
+
 def matching_snapshot(profile: CandidateProfile) -> dict[str, Any]:
     """Данные для сервисов подбора и тестирования (события, внутренний API)."""
     return {
@@ -125,6 +135,7 @@ def matching_snapshot(profile: CandidateProfile) -> dict[str, Any]:
         "skills": profile.skills,
         "soft_skills": profile.soft_skills,
         "languages": profile.languages,
+        "verified_skills": active_skill_verifications(profile),
         "total_experience_months": total_experience_months(
             profile.experience, date.today()
         ),
@@ -398,6 +409,7 @@ class ProfileService:
             "skills": profile.skills,
             "soft_skills": profile.soft_skills,
             "languages": profile.languages,
+            "verified_skills": active_skill_verifications(profile),
             "experience": profile.experience,
             "education": profile.education,
             "courses": profile.courses,

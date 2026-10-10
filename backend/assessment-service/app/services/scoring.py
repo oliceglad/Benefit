@@ -78,3 +78,16 @@ def evaluate(percent: float, target: Grade) -> tuple[Outcome, Grade | None]:
     if percent >= settings.pass_percent:
         return Outcome.CONFIRMED, target
     return Outcome.NOT_CONFIRMED, None
+
+
+def evaluate_level(
+    percent: float, levels: list[dict[str, Any]]
+) -> tuple[Outcome, dict[str, Any] | None]:
+    """Уровень навыка — самая высокая ступень шкалы, порог которой набран.
+
+    Ниже первой ступени уровень не подтверждается.
+    """
+    reached = [level for level in levels if percent >= level["min_percent"]]
+    if not reached:
+        return Outcome.NOT_CONFIRMED, None
+    return Outcome.CONFIRMED, reached[-1]

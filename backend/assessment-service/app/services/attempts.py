@@ -27,6 +27,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.models import (
     Assessment,
+    AssessmentKind,
     AssessmentTask,
     Attempt,
     AttemptStatus,
@@ -43,8 +44,10 @@ from app.schemas.assessment import (
     AttemptResult,
     AttemptSummary,
     CooldownInfo,
+    LevelInfo,
     Option,
     SkillScore,
+    SkillTestOption,
     SpecializationOption,
     SurveyAnswers,
     SurveyOptions,
@@ -53,12 +56,13 @@ from app.schemas.assessment import (
     TaskResult,
     TaskView,
     VerifiedCategory,
+    VerifiedSkill,
 )
 from app.services import clock
 from app.services.assignment_events import publish_assignment_result
 from app.services.candidates import CandidateDirectory
-from app.services.delivery import CANDIDATE_ASSESSMENT, NOTIFICATION
-from app.services.scoring import evaluate, score, validate_answer
+from app.services.delivery import CANDIDATE_ASSESSMENT, CANDIDATE_SKILL, NOTIFICATION
+from app.services.scoring import evaluate, evaluate_level, score, validate_answer
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +94,47 @@ def select_tasks(
     return sorted(chosen, key=lambda t: t.position)
 
 
+def level_of(attempt: Attempt) -> LevelInfo | None:
+    """Подтверждённый уровень навыка по шкале теста попытки."""
+    if attempt.confirmed_level is None:
+        return None
+    for level in attempt.assessment.levels:
+        if level["id"] == attempt.confirmed_level:
+            return LevelInfo(**level)
+    return None
+
+
+def _level_rank(attempt: Attempt) -> int:
+    ids = [level["id"] for level in attempt.assessment.levels]
+    return ids.index(attempt.confirmed_level) if attempt.confirmed_level in ids else -1
+
+
+def _retry(available_at: datetime | None) -> str:
+    return (
+        f" Повторить тест можно с {available_at:%d.%m.%Y %H:%M} UTC."
+        if available_at
+        else ""
+    )
+
+
+def skill_result_message(attempt: Attempt, available_at: datetime | None) -> str:
+    level = level_of(attempt)
+    if level is not None:
+        return (
+            f"{attempt.skill}: подтверждён уровень {level.title} "
+            f"({attempt.percent:g}%). Работодатели видят отметку в профиле."
+        )
+    first = attempt.assessment.levels[0]
+    return (
+        f"{attempt.skill}: уровень пока не подтверждён — {attempt.percent:g}% "
+        f"при пороге {first['min_percent']:g}% для {first['title']}."
+        + _retry(available_at)
+    )
+
+
 def result_message(attempt: Attempt, available_at: datetime | None) -> str:
+    if attempt.skill is not None:
+        return skill_result_message(attempt, available_at)
     target = GRADE_TITLES[Grade(attempt.target_grade)]
     if attempt.outcome == Outcome.EXCEEDED:
         confirmed = GRADE_TITLES[Grade(attempt.confirmed_grade)]
@@ -103,15 +147,10 @@ def result_message(attempt: Attempt, available_at: datetime | None) -> str:
             f"Грейд {target} подтверждён ({attempt.percent:g}%). "
             "Работодатели видят отметку о подтверждении."
         )
-    retry = (
-        f" Повторить тест можно с {available_at:%d.%m.%Y %H:%M} UTC."
-        if available_at
-        else ""
-    )
     return (
         f"Грейд {target} пока не подтверждён: {attempt.percent:g}% при пороге "
         f"{settings.pass_percent:g}%. В профиле остаётся заявленный грейд "
-        f"с пометкой «не подтверждён».{retry}"
+        f"с пометкой «не подтверждён»." + _retry(available_at)
     )
 
 
@@ -122,16 +161,24 @@ class AttemptService:
 
     # --- Опрос и каталог -----------------------------------------------------
 
-    async def catalog(self) -> list[Assessment]:
+    async def catalog(self, kind: AssessmentKind | None = None) -> list[Assessment]:
+        query = select(Assessment).where(
+            Assessment.is_active, Assessment.owner_id.is_(None)
+        )
+        if kind is not None:
+            query = query.where(Assessment.kind == kind)
         result = await self.session.scalars(
-            select(Assessment)
-            .where(Assessment.is_active, Assessment.owner_id.is_(None))
-            .order_by(Assessment.specialization, Assessment.grade)
+            query.order_by(
+                Assessment.kind,
+                Assessment.specialization,
+                Assessment.grade,
+                Assessment.skill,
+            )
         )
         return list(result)
 
     async def survey(self, principal: Principal) -> SurveyOptions:
-        catalog = await self.catalog()
+        catalog = await self.catalog(AssessmentKind.GRADE)
         grades_by_role: dict[str, list[Grade]] = defaultdict(list)
         for assessment in catalog:
             grades_by_role[assessment.specialization].append(Grade(assessment.grade))
@@ -197,6 +244,7 @@ class AttemptService:
             .where(
                 Assessment.is_active,
                 Assessment.owner_id.is_(None),
+                Assessment.kind == AssessmentKind.GRADE,
                 Assessment.specialization == survey.specialization,
                 Assessment.grade == survey.target_grade,
             )
@@ -226,6 +274,71 @@ class AttemptService:
         await self.session.commit()
         return await self.view(await self._load(principal, attempt.id))
 
+    # --- Тесты на навыки ----------------------------------------------------------
+
+    async def skill_tests(self, principal: Principal) -> list[SkillTestOption]:
+        """Каталог тестов на навыки с текущим уровнем и ограничением повтора."""
+        verified = {
+            v.skill.lower(): v for v in await self._verified_skills(principal.id)
+        }
+        cooldowns = await self._skill_cooldowns(principal.id)
+        return [
+            SkillTestOption(
+                test=AssessmentInfo.model_validate(test),
+                verified=verified.get((test.skill or "").lower()),
+                available_at=cooldowns.get((test.skill or "").lower()),
+            )
+            for test in await self.catalog(AssessmentKind.SKILL)
+        ]
+
+    async def start_skill(
+        self, principal: Principal, assessment_id: uuid.UUID
+    ) -> AttemptResponse:
+        """Начать тест на навык. Опроса нет: шкала одна для всех."""
+        await self.expire_overdue(user_id=principal.id)
+        assessment = await self.session.scalar(
+            select(Assessment)
+            .where(
+                Assessment.id == assessment_id,
+                Assessment.is_active,
+                Assessment.owner_id.is_(None),
+                Assessment.kind == AssessmentKind.SKILL,
+            )
+            .options(selectinload(Assessment.tasks))
+        )
+        if assessment is None or assessment.skill is None:
+            raise NotFoundError("Тест не найден", code="assessment_not_found")
+        if await self._active_attempt(principal.id) is not None:
+            raise ConflictError(
+                "Сначала завершите начатый тест", code="attempt_in_progress"
+            )
+        available_at = (await self._skill_cooldowns(principal.id)).get(
+            assessment.skill.lower()
+        )
+        if available_at is not None:
+            raise AppError(
+                "Повторно пройти тест по этому навыку можно "
+                f"с {available_at:%d.%m.%Y %H:%M} UTC",
+                code="attempt_cooldown",
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        snapshot = await self.candidates.snapshot(principal.id)
+        if snapshot is None:
+            raise ConflictError(
+                "Сначала создайте профиль кандидата", code="profile_required"
+            )
+        attempt = self.new_attempt(
+            principal,
+            assessment,
+            # Задачи — из всего банка: подбор по стеку исказил бы уровень.
+            skills=set(),
+            survey={},
+            claimed_grade=snapshot.get("grade"),
+        )
+        self.session.add(attempt)
+        await self.session.commit()
+        return await self.view(await self._load(principal, attempt.id))
+
     def new_attempt(
         self,
         principal: Principal,
@@ -248,6 +361,7 @@ class AttemptService:
             assignment_id=assignment_id,
             specialization=assessment.specialization,
             target_grade=assessment.grade,
+            skill=assessment.skill,
             claimed_grade=claimed_grade,
             survey=survey,
             status=AttemptStatus.IN_PROGRESS,
@@ -367,8 +481,10 @@ class AttemptService:
             AttemptSummary(
                 id=a.id,
                 title=a.assessment.title,
+                kind=a.assessment.kind,
                 specialization=a.specialization,
                 target_grade=a.target_grade,
+                skill=a.skill,
                 industry=a.survey.get("industry"),
                 status=a.status,
                 started_at=a.started_at,
@@ -377,6 +493,7 @@ class AttemptService:
                 percent=a.percent,
                 outcome=a.outcome,
                 confirmed_grade=a.confirmed_grade,
+                level=level_of(a),
                 assignment_id=a.assignment_id,
             )
             for a in attempts
@@ -405,6 +522,7 @@ class AttemptService:
             )
         return AssessmentStatus(
             verified=verified,
+            skills=await self._verified_skills(user_id),
             active_attempt_id=active.id if active else None,
             cooldowns=await self._cooldowns(user_id),
             attempts_total=total or 0,
@@ -490,6 +608,8 @@ class AttemptService:
             outcome=attempt.outcome,
             target_grade=attempt.target_grade,
             confirmed_grade=attempt.confirmed_grade,
+            skill=attempt.skill,
+            level=level_of(attempt),
             message=(
                 "Результат отправлен работодателю."
                 if attempt.assignment_id
@@ -543,6 +663,7 @@ class AttemptService:
                 Attempt.user_id == user_id,
                 Attempt.finished_at.is_not(None),
                 Attempt.assignment_id.is_(None),
+                Attempt.skill.is_(None),
             )
             .group_by(Attempt.specialization)
         )
@@ -553,6 +674,73 @@ class AttemptService:
             for spec, finished in rows
             if finished + cooldown > now
         ]
+
+    async def _skill_cooldowns(self, user_id: uuid.UUID) -> dict[str, datetime]:
+        """Навыки (в нижнем регистре), по которым повтор пока недоступен."""
+        rows = await self.session.execute(
+            select(func.lower(Attempt.skill), func.max(Attempt.finished_at))
+            .where(
+                Attempt.user_id == user_id,
+                Attempt.finished_at.is_not(None),
+                Attempt.skill.is_not(None),
+            )
+            .group_by(func.lower(Attempt.skill))
+        )
+        now = clock.now()
+        cooldown = timedelta(hours=settings.attempt_cooldown_hours)
+        return {
+            skill: finished + cooldown
+            for skill, finished in rows
+            if finished + cooldown > now
+        }
+
+    async def _best_skill_attempts(self, user_id: uuid.UUID) -> list[Attempt]:
+        """Лучший действующий результат по каждому навыку.
+
+        Как и с грейдом, неудачная попытка не отменяет подтверждённый уровень.
+        """
+        since = clock.now() - timedelta(days=settings.confirmation_valid_days)
+        attempts = await self.session.scalars(
+            select(Attempt)
+            .where(
+                Attempt.user_id == user_id,
+                Attempt.confirmed_level.is_not(None),
+                Attempt.finished_at >= since,
+            )
+            .options(selectinload(Attempt.assessment))
+        )
+        best: dict[str, Attempt] = {}
+        for attempt in attempts:
+            key = (attempt.skill or "").lower()
+            current = best.get(key)
+            if current is None or (_level_rank(attempt), attempt.finished_at) > (
+                _level_rank(current),
+                current.finished_at,
+            ):
+                best[key] = attempt
+        return sorted(best.values(), key=lambda a: (a.skill or "").lower())
+
+    async def _verified_skills(self, user_id: uuid.UUID) -> list[VerifiedSkill]:
+        return [
+            self._verified_skill(attempt)
+            for attempt in await self._best_skill_attempts(user_id)
+            if level_of(attempt) is not None
+        ]
+
+    @staticmethod
+    def _verified_skill(attempt: Attempt) -> VerifiedSkill:
+        level = level_of(attempt)
+        assert level and attempt.skill and attempt.finished_at
+        return VerifiedSkill(
+            skill=attempt.skill,
+            level=level,
+            verified_at=attempt.finished_at,
+            valid_until=attempt.finished_at
+            + timedelta(days=settings.confirmation_valid_days),
+            attempt_id=attempt.id,
+            percent=attempt.percent or 0,
+            test_title=attempt.assessment.title,
+        )
 
     async def _best_confirmation(self, user_id: uuid.UUID) -> Attempt | None:
         """Лучший действующий подтверждённый результат по всем специализациям.
@@ -608,11 +796,13 @@ class AttemptService:
             round(total * 100 / attempt.max_score, 1) if attempt.max_score else 0.0
         )
         # Тесты работодателей грейд не подтверждают.
-        outcome, confirmed = (
-            (None, None)
-            if attempt.assignment_id
-            else evaluate(percent, Grade(attempt.target_grade))
-        )
+        outcome: Outcome | None = None
+        confirmed: Grade | None = None
+        level: dict[str, Any] | None = None
+        if attempt.skill is not None:
+            outcome, level = evaluate_level(percent, attempt.assessment.levels)
+        elif not attempt.assignment_id:
+            outcome, confirmed = evaluate(percent, Grade(attempt.target_grade))
 
         attempt.status = final_status
         attempt.finished_at = finished_at
@@ -623,10 +813,13 @@ class AttemptService:
         attempt.percent = percent
         attempt.outcome = outcome
         attempt.confirmed_grade = confirmed
+        attempt.confirmed_level = level["id"] if level else None
         await self.session.flush()
         logger.info("Attempt %s finished: %s%% -> %s", attempt.id, percent, outcome)
         if attempt.assignment_id:
             await publish_assignment_result(self.session, attempt)
+        elif attempt.skill is not None:
+            await self._publish_skill(attempt)
         else:
             await self._publish(attempt)
 
@@ -685,6 +878,60 @@ class AttemptService:
                 "data": {
                     "attempt_id": str(attempt.id),
                     "outcome": attempt.outcome,
+                    "percent": attempt.percent,
+                },
+                "email": True,
+                "dedup_key": f"assessment:{attempt.id}:finished",
+            },
+        )
+
+    async def _publish_skill(self, attempt: Attempt) -> None:
+        """Лучший действующий уровень навыка — в профиль, итог — в уведомления."""
+        assert attempt.skill is not None
+        best = next(
+            (
+                a
+                for a in await self._best_skill_attempts(attempt.user_id)
+                if (a.skill or "").lower() == attempt.skill.lower()
+            ),
+            None,
+        )
+        verified = self._verified_skill(best) if best and level_of(best) else None
+        enqueue(
+            self.session,
+            OutboxMessage,
+            CANDIDATE_SKILL,
+            {
+                "user_id": str(attempt.user_id),
+                "skill": attempt.skill,
+                # None — подтверждённого уровня нет (убрать отметку).
+                "verification": verified.model_dump(mode="json") if verified else None,
+            },
+        )
+        available_at = (
+            attempt.finished_at + timedelta(hours=settings.attempt_cooldown_hours)
+            if attempt.outcome == Outcome.NOT_CONFIRMED and attempt.finished_at
+            else None
+        )
+        level = level_of(attempt)
+        enqueue(
+            self.session,
+            OutboxMessage,
+            NOTIFICATION,
+            {
+                "user_id": str(attempt.user_id),
+                "type": "assessment.completed",
+                "title": f"{attempt.skill}: уровень {level.title} подтверждён"
+                if level
+                else f"{attempt.skill}: уровень пока не подтверждён",
+                "body": f"Тест «{attempt.assessment.title}»: {attempt.score:g} "
+                f"из {attempt.max_score} баллов.\n"
+                + skill_result_message(attempt, available_at),
+                "link": f"/assessments/attempts/{attempt.id}",
+                "data": {
+                    "attempt_id": str(attempt.id),
+                    "skill": attempt.skill,
+                    "level": level.id if level else None,
                     "percent": attempt.percent,
                 },
                 "email": True,

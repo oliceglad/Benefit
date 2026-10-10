@@ -1,3 +1,6 @@
+import uuid
+from datetime import UTC, datetime, timedelta
+
 from benefit_common.settings import get_common_settings
 from httpx import AsyncClient
 from sqlalchemy import TextClause, text
@@ -321,3 +324,51 @@ async def test_employer_deletion_removes_contact_access(
     async with engine.begin() as conn:
         grants = await conn.scalar(text("SELECT count(*) FROM contact_grants"))
     assert grants == 0
+
+
+async def push_skill(
+    client: AsyncClient, user: User, skill: str, level: str | None, days: int = 365
+) -> dict:
+    verification = (
+        {
+            "level": {"id": level, "title": f"{level.upper()} — уровень"},
+            "verified_at": "2026-10-08T10:00:00Z",
+            "valid_until": (datetime.now(UTC) + timedelta(days=days)).isoformat(),
+            "attempt_id": str(uuid.uuid4()),
+            "percent": 80,
+            "test_title": f"{skill} — уровень",
+        }
+        if level
+        else None
+    )
+    response = await client.put(
+        f"/internal/v1/candidates/{user.id}/skill-verifications",
+        json={"skill": skill, "verification": verification},
+        headers=HEADERS,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
+async def test_verified_skills_visible_to_employer(
+    client: AsyncClient, candidate: User, employer: User
+) -> None:
+    await published_profile(client, candidate)
+
+    await push_skill(client, candidate, "English", "b1")
+    await push_skill(client, candidate, "english", "b2")  # замена, не дубль
+    snapshot = await push_skill(client, candidate, "SQL", "advanced")
+    await push_skill(client, candidate, "Git", "basic", days=-1)  # истёк
+
+    assert [(s["skill"], s["level"]["id"]) for s in snapshot["verified_skills"]] == [
+        ("english", "b2"),
+        ("SQL", "advanced"),
+    ]
+    public = (
+        await client.get(f"/api/v1/candidates/{candidate.id}", headers=employer.headers)
+    ).json()
+    assert [s["level"]["id"] for s in public["verified_skills"]] == ["b2", "advanced"]
+
+    await push_skill(client, candidate, "SQL", None)
+    own = (await client.get("/api/v1/candidates/me", headers=candidate.headers)).json()
+    assert [s["skill"] for s in own["verified_skills"]] == ["english"]

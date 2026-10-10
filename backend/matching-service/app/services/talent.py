@@ -70,6 +70,7 @@ def card(row: CandidateIndex) -> CandidateCard:
             test_title=row.test_title,
         ),
         skills=row.skills_display,
+        verified_skills=list((row.verified_skills or {}).values()),
         experience_months=row.experience_months,
         work_formats=row.work_formats,
         salary_from=row.salary_from,

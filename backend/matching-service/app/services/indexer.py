@@ -86,9 +86,25 @@ def index_row(document: dict[str, Any]) -> dict[str, Any]:
         "verified_percent": category.get("percent"),
         "test_title": category.get("test_title"),
         "industry": category.get("industry") or document.get("industry"),
-        "skills": [s["name"].lower() for s in skills],
+        # Подтверждённые тестом навыки участвуют в фильтрах, даже если
+        # кандидат не добавил их в стек.
+        "skills": list(
+            dict.fromkeys(
+                [s["name"].lower() for s in skills]
+                + [v["skill"].lower() for v in document.get("verified_skills") or []]
+            )
+        ),
         "skills_display": skills,
         "skill_experience": skill_experience(document.get("experience") or []),
+        "verified_skills": {
+            item["skill"].lower(): {
+                "skill": item["skill"],
+                "level": item["level"]["id"],
+                "title": item["level"]["title"],
+                "percent": item.get("percent"),
+            }
+            for item in document.get("verified_skills") or []
+        },
         "experience_months": document.get("total_experience_months") or 0,
         "work_formats": document.get("work_formats") or [],
         "employment_types": document.get("employment_types") or [],

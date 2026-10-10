@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Assessment, AssessmentTask, Attempt
+from app.models import Assessment, AssessmentKind, AssessmentTask, Attempt
 from app.schemas.content import (
     AdminTestDetail,
     AdminTestSummary,
@@ -25,8 +25,10 @@ from app.schemas.content import (
 TEST_FIELDS = (
     "title",
     "description",
+    "kind",
     "specialization",
     "grade",
+    "skill",
     "time_limit_seconds",
     "tasks_per_attempt",
     "is_active",
@@ -56,6 +58,7 @@ def to_test_in(assessment: Assessment) -> TestIn:
     return TestIn(
         slug=assessment.slug,
         **{field: getattr(assessment, field) for field in TEST_FIELDS},
+        levels=assessment.levels,
         tasks=[
             TaskIn(
                 key=task.key,
@@ -95,15 +98,22 @@ class ContentService:
             select(Assessment)
             .where(PLATFORM)
             .options(selectinload(Assessment.tasks))
-            .order_by(Assessment.specialization, Assessment.grade)
+            .order_by(
+                Assessment.kind,
+                Assessment.specialization,
+                Assessment.grade,
+                Assessment.skill,
+            )
         )
         return [
             AdminTestSummary(
                 id=a.id,
                 slug=a.slug,
                 title=a.title,
+                kind=a.kind,
                 specialization=a.specialization,
                 grade=a.grade,
+                skill=a.skill,
                 is_active=a.is_active,
                 tasks_total=len(a.tasks),
                 tasks_active=sum(1 for t in a.tasks if t.is_active),
@@ -149,6 +159,8 @@ class ContentService:
         self, assessment_id: uuid.UUID, is_active: bool, actor: uuid.UUID
     ) -> AdminTestDetail:
         assessment = await self._load(assessment_id)
+        if is_active:
+            await self._ensure_unique(to_test_in(assessment))
         assessment.is_active = is_active
         assessment.updated_by = actor
         await self.session.commit()
@@ -193,6 +205,32 @@ class ContentService:
     ) -> None:
         await self._apply(assessment, data, actor)
 
+    async def _ensure_unique(self, data: TestIn) -> None:
+        """Кандидат выбирает тест по специализации и грейду (или по навыку),
+        поэтому активный тест платформы для каждой пары — один."""
+        if data.kind == AssessmentKind.GRADE:
+            same = (Assessment.specialization == data.specialization) & (
+                Assessment.grade == data.grade
+            )
+        else:
+            same = func.lower(Assessment.skill) == (data.skill or "").lower()
+        query = select(Assessment.slug).where(
+            PLATFORM,
+            Assessment.is_active,
+            Assessment.kind == data.kind,
+            Assessment.slug != data.slug,
+            same,
+        )
+        # Новый тест уже добавлен в сессию, но ещё не заполнен.
+        with self.session.no_autoflush:
+            other = await self.session.scalar(query.limit(1))
+        if other is not None:
+            raise ConflictError(
+                f"Активный тест на это уже есть: {other}. Снимите его с публикации "
+                "или измените этот.",
+                code="assessment_duplicate",
+            )
+
     async def _apply(
         self, assessment: Assessment, data: TestIn, actor: uuid.UUID | None
     ) -> None:
@@ -201,8 +239,11 @@ class ContentService:
         Задачи, которых нет в новых данных, деактивируются, а не удаляются:
         на них ссылаются прошлые попытки кандидатов.
         """
+        if assessment.owner_id is None and data.is_active:
+            await self._ensure_unique(data)
         for field in TEST_FIELDS:
             setattr(assessment, field, getattr(data, field))
+        assessment.levels = [level.model_dump() for level in data.levels]
         assessment.updated_by = actor
 
         existing = {task.key: task for task in assessment.tasks}

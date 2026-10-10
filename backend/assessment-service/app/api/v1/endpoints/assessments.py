@@ -1,8 +1,10 @@
 """Прохождение тестирования кандидатом.
 
-Сценарий: ``GET /survey`` (опрос и предзаполнение из профиля) →
-``POST /attempts`` (ответы опроса, старт) → цикл ``GET /attempts/{id}/current-task``
-и ``POST /attempts/{id}/answers`` → результат в ``GET /attempts/{id}``.
+Тест на грейд: ``GET /survey`` (опрос и предзаполнение из профиля) →
+``POST /attempts`` (ответы опроса, старт). Тест на навык (английский, SQL,
+Git…): ``GET /skill-tests`` → ``POST /skill-tests/{id}/attempts``. Дальше
+одинаково: цикл ``GET /attempts/{id}/current-task`` и
+``POST /attempts/{id}/answers`` → результат в ``GET /attempts/{id}``.
 
 Время задачи идёт с момента её выдачи (``current-task``) и считается на
 сервере; ответ после лимита задачи не засчитывается.
@@ -14,6 +16,7 @@ from benefit_common.security import Candidate, CurrentPrincipal
 from fastapi import APIRouter, status
 
 from app.api.deps import AttemptServiceDep
+from app.models import AssessmentKind
 from app.schemas.assessment import (
     AnswerRequest,
     AnswerResponse,
@@ -21,6 +24,7 @@ from app.schemas.assessment import (
     AssessmentStatus,
     AttemptResponse,
     AttemptSummary,
+    SkillTestOption,
     SurveyAnswers,
     SurveyOptions,
     TaskView,
@@ -35,9 +39,13 @@ async def health() -> dict[str, str]:
 
 
 @router.get("/tests", response_model=list[AssessmentInfo])
-async def list_tests(_: CurrentPrincipal, service: AttemptServiceDep) -> list:
-    """Каталог тестов (без задач)."""
-    return [AssessmentInfo.model_validate(a) for a in await service.catalog()]
+async def list_tests(
+    _: CurrentPrincipal,
+    service: AttemptServiceDep,
+    kind: AssessmentKind | None = None,
+) -> list:
+    """Каталог тестов (без задач): на грейд и на навыки."""
+    return [AssessmentInfo.model_validate(a) for a in await service.catalog(kind)]
 
 
 @router.get("/survey", response_model=SurveyOptions)
@@ -62,6 +70,26 @@ async def start_attempt(
 ) -> AttemptResponse:
     """Начать тест по ответам опроса (специализация + предполагаемый грейд)."""
     return await service.start(principal, survey)
+
+
+@router.get("/skill-tests", response_model=list[SkillTestOption])
+async def skill_tests(principal: Candidate, service: AttemptServiceDep) -> list:
+    """Тесты на навыки: шкала уровней, подтверждённый уровень, когда можно
+    пройти повторно."""
+    return await service.skill_tests(principal)
+
+
+@router.post(
+    "/skill-tests/{assessment_id}/attempts",
+    response_model=AttemptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def start_skill_attempt(
+    assessment_id: uuid.UUID, principal: Candidate, service: AttemptServiceDep
+) -> AttemptResponse:
+    """Начать тест на навык. Уровень определяется по набранному проценту:
+    самая высокая ступень шкалы, порог которой достигнут."""
+    return await service.start_skill(principal, assessment_id)
 
 
 @router.get("/attempts", response_model=list[AttemptSummary])

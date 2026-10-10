@@ -139,7 +139,7 @@ class EmployerTestService:
         assessment = await self._own_test(employer, test_id)
         data = to_test_in(assessment)
         return EmployerTestDetail(
-            **data.model_dump(exclude={"slug", "is_active"}),
+            **data.model_dump(exclude={"slug", "is_active", "kind", "skill", "levels"}),
             id=assessment.id,
             is_active=assessment.is_active,
             updated_at=assessment.updated_at,

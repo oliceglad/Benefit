@@ -82,7 +82,7 @@ async def test_import_is_idempotent() -> None:
         )
         after = await session.scalar(count)
     assert before == after == 22
-    assert report.skipped == ["backend-middle", "qa-junior"]
+    assert report.skipped == ["backend-middle", "qa-junior", "english"]
 
 
 async def test_relay_delivers_results(client: AsyncClient, candidate: Any) -> None:

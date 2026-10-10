@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from benefit_common.dictionaries import Grade, Industry, ITRole
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from app.models import AttemptStatus, Outcome, TaskKind
+from app.models import AssessmentKind, AttemptStatus, Outcome, TaskKind
 
 SkillName = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)
@@ -63,6 +63,14 @@ class SurveyOptions(BaseModel):
     exceed_percent: float
 
 
+class LevelInfo(BaseModel):
+    """Ступень шкалы теста на навык (например, B2 по CEFR)."""
+
+    id: str
+    title: str
+    min_percent: float
+
+
 class AssessmentInfo(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,8 +78,13 @@ class AssessmentInfo(BaseModel):
     slug: str
     title: str
     description: str
-    specialization: ITRole
-    grade: Grade
+    kind: AssessmentKind
+    # Тест на грейд.
+    specialization: ITRole | None
+    grade: Grade | None
+    # Тест на навык: навык и шкала уровней по возрастанию.
+    skill: str | None
+    levels: list[LevelInfo]
     time_limit_seconds: int
     tasks_per_attempt: int
 
@@ -132,9 +145,13 @@ class AttemptResult(BaseModel):
     percent: float
     # None — тест работодателя (грейд не подтверждает).
     outcome: Outcome | None
-    target_grade: Grade
-    # Подтверждённый грейд (None — не подтверждён). Ниже целевого не бывает.
+    # Тест на грейд: целевой и подтверждённый грейд (None — не подтверждён,
+    # ниже целевого не бывает).
+    target_grade: Grade | None
     confirmed_grade: Grade | None
+    # Тест на навык: навык и подтверждённый уровень (None — ниже шкалы).
+    skill: str | None = None
+    level: LevelInfo | None = None
     message: str
     duration_seconds: float
     tasks: list[TaskResult]
@@ -167,8 +184,10 @@ class AnswerResponse(BaseModel):
 class AttemptSummary(BaseModel):
     id: uuid.UUID
     title: str
-    specialization: ITRole
-    target_grade: Grade
+    kind: AssessmentKind
+    specialization: ITRole | None
+    target_grade: Grade | None
+    skill: str | None
     industry: Industry | None
     status: AttemptStatus
     started_at: datetime
@@ -177,6 +196,7 @@ class AttemptSummary(BaseModel):
     percent: float | None
     outcome: Outcome | None
     confirmed_grade: Grade | None
+    level: LevelInfo | None = None
     # Тест прислал работодатель.
     assignment_id: uuid.UUID | None = None
 
@@ -190,10 +210,32 @@ class VerifiedCategory(BaseModel):
     percent: float
 
 
+class VerifiedSkill(BaseModel):
+    """Действующий подтверждённый уровень навыка (лучший результат)."""
+
+    skill: str
+    level: LevelInfo
+    verified_at: datetime
+    valid_until: datetime
+    attempt_id: uuid.UUID
+    percent: float
+    test_title: str
+
+
+class SkillTestOption(BaseModel):
+    """Тест на навык в каталоге кандидата."""
+
+    test: AssessmentInfo
+    verified: VerifiedSkill | None
+    # Повторная попытка доступна с этого момента (None — уже доступна).
+    available_at: datetime | None
+
+
 class AssessmentStatus(BaseModel):
-    """Текущий статус кандидата: подтверждённая категория, ограничения."""
+    """Текущий статус кандидата: подтверждённая категория, навыки, ограничения."""
 
     verified: VerifiedCategory | None
+    skills: list[VerifiedSkill]
     active_attempt_id: uuid.UUID | None
     cooldowns: list[CooldownInfo]
     attempts_total: int

@@ -171,8 +171,15 @@ def _months_since(last_used: str) -> int:
 def skill_credit(
     skill: str, row: CandidateIndex
 ) -> tuple[float, str | None, str | None]:
-    """Доля зачёта навыка, близкий навык (если зачтён он) и пояснение."""
+    """Доля зачёта навыка, близкий навык (если зачтён он) и пояснение.
+
+    Уровень, подтверждённый тестом платформы, засчитывает навык полностью —
+    даже если кандидат не указал его в стеке.
+    """
     key = skill.lower()
+    verified = (row.verified_skills or {}).get(key)
+    if verified:
+        return 1.0, None, f"{skill} — подтверждён тестом: {verified['title']}"
     if key in row.skills:
         credit = 0.7
         level = next(

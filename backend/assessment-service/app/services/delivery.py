@@ -2,6 +2,8 @@
 
 * ``candidate.assessment`` — категория и подтверждённый грейд в профиль
   (candidate-service);
+* ``candidate.skill`` — подтверждённый уровень навыка в профиль
+  (candidate-service);
 * ``notification`` — уведомление кандидату о результате
   (notification-service, дублируется на почту).
 """
@@ -16,6 +18,7 @@ from app.core.config import settings
 from app.models import OutboxMessage
 
 CANDIDATE_ASSESSMENT = "candidate.assessment"
+CANDIDATE_SKILL = "candidate.skill"
 NOTIFICATION = "notification"
 CHAT_MESSAGE = "chat.message"
 CANDIDATE_ACTIVITY = "candidate.activity"
@@ -37,6 +40,19 @@ class CandidatePublisher:
         body = {k: v for k, v in payload.items() if k != "user_id"}
         response = await self.client.put(
             f"/internal/v1/candidates/{payload['user_id']}/assessment", json=body
+        )
+        _check(response)
+
+
+class SkillPublisher:
+    def __init__(self, client: InternalClient) -> None:
+        self.client = client
+
+    async def __call__(self, payload: dict[str, Any]) -> None:
+        body = {k: v for k, v in payload.items() if k != "user_id"}
+        response = await self.client.put(
+            f"/internal/v1/candidates/{payload['user_id']}/skill-verifications",
+            json=body,
         )
         _check(response)
 
@@ -85,6 +101,7 @@ def build_relay(
     notification: Any = None,
     chat: Any = None,
     activity: Any = None,
+    skill: Any = None,
 ) -> OutboxRelay:
     return OutboxRelay(
         OutboxMessage,
@@ -92,6 +109,10 @@ def build_relay(
         {
             CANDIDATE_ASSESSMENT: candidate
             or CandidatePublisher(
+                InternalClient(settings.candidate_service_url, service="candidate")
+            ),
+            CANDIDATE_SKILL: skill
+            or SkillPublisher(
                 InternalClient(settings.candidate_service_url, service="candidate")
             ),
             NOTIFICATION: notification

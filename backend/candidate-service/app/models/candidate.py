@@ -80,6 +80,9 @@ class CandidateProfile(TimestampMixin, Base):
     verification: Mapped[dict[str, Any]] = mapped_column(
         JSONB, default=dict, server_default="{}"
     )
+    # Уровни навыков, подтверждённые тестами (заполняет assessment-service):
+    # ``[{"skill": "English", "level": {"id": "b2", "title": …}, …}]``.
+    verified_skills: Mapped[list[dict[str, Any]]] = _json_list()
     roles: Mapped[list[str]] = _json_list()
     skills: Mapped[list[dict[str, Any]]] = _json_list()
     soft_skills: Mapped[list[str]] = _json_list()

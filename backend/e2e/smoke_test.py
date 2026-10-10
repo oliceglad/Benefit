@@ -217,6 +217,67 @@ class Smoke:
         )
         self.ok("уведомление в кабинете и письмо доставлены")
 
+        self.step("Тест на навык: уровень в профиле (assessment → candidate)")
+        skill_tests = self.check(
+            self.http.get("/api/v1/assessments/skill-tests", headers=candidate)
+        )
+        english = next(
+            (o for o in skill_tests if o["test"]["skill"] == "English"), None
+        )
+        if english is None:
+            self.ok("пакет тестов на навыки не загружен — шаг пропущен")
+        else:
+            attempt = self.check(
+                self.http.post(
+                    f"/api/v1/assessments/skill-tests/{english['test']['id']}/attempts",
+                    headers=candidate,
+                ),
+                201,
+            )
+            url = f"/api/v1/assessments/attempts/{attempt['id']}"
+            while True:
+                task = self.check(
+                    self.http.get(f"{url}/current-task", headers=candidate)
+                )
+                answer = "up" if task["kind"] == "text" else [task["options"][0]["id"]]
+                reply = self.check(
+                    self.http.post(
+                        f"{url}/answers",
+                        json={
+                            "attempt_task_id": task["attempt_task_id"],
+                            "answer": answer,
+                        },
+                        headers=candidate,
+                    )
+                )
+                if reply["finished"]:
+                    break
+            result = reply["attempt"]["result"]
+            level = result["level"]
+            self.ok(
+                f"English: {result['percent']}%, уровень "
+                f"{level['title'] if level else 'не подтверждён'}"
+            )
+            if level:
+
+                def verified() -> list[dict[str, Any]]:
+                    profile = self.check(
+                        self.http.get(
+                            f"/api/v1/candidates/{candidate_id}", headers=employer
+                        )
+                    )
+                    return profile["verified_skills"]
+
+                [shown] = self.wait_for("уровень в профиле", verified)
+                assert shown["level"]["id"] == level["id"], shown
+                self.ok(f"работодатель видит English {shown['level']['title']}")
+            retry = self.http.post(
+                f"/api/v1/assessments/skill-tests/{english['test']['id']}/attempts",
+                headers=candidate,
+            )
+            assert retry.status_code == 429, retry.text
+            self.ok("повтор теста ограничен по времени")
+
         self.step("Работодатель: компания, потребность, подборка (employer → matching)")
         self.check(
             self.http.put(
@@ -633,9 +694,11 @@ class Smoke:
         assert changed["matching_state"]["requirements_changed"] is True
         second = self.check(self.http.get(vacancy_matches, headers=employer))
         assert (second["recalculated"], second["matching_version"]) == ("criteria", 2)
-        assert candidate_id in [
-            c["candidate"]["user_id"] for c in second["candidates"]
-        ] + second["changes"]["added"]
+        assert (
+            candidate_id
+            in [c["candidate"]["user_id"] for c in second["candidates"]]
+            + second["changes"]["added"]
+        )
         self.ok(
             "подбор по вакансии: после изменения требований пересчитан "
             f"(было {first['total']}, стало {second['total']})"

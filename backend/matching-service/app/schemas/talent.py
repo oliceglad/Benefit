@@ -39,6 +39,8 @@ class CandidateCard(BaseModel):
     roles: list[ITRole]
     category: Category
     skills: list[dict[str, Any]]
+    # Уровни навыков, подтверждённые тестами (английский, SQL, Git…).
+    verified_skills: list[dict[str, Any]] = Field(default_factory=list)
     experience_months: int
     work_formats: list[str]
     salary_from: int | None
