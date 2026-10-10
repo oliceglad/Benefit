@@ -454,9 +454,14 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
 
   # Тестовый SMTP-сервер: все письма видны в веб-интерфейсе.
+  # Служебные интерфейсы (Mailpit, Grafana, Prometheus, Alertmanager) живут на
+  # подпутях: так их проксирует фронтенд (http://<сервер>/mailpit/ и т.д.),
+  # локально — те же пути на своих портах.
   mailpit:
     <<: *service-defaults
     image: axllent/mailpit:latest
+    environment:
+      MP_WEBROOT: /mailpit/
     ports:
       - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
 
@@ -499,6 +504,9 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
       - --web.enable-lifecycle
+      # Ссылки (в том числе в алертах) — на публичный адрес через фронтенд.
+      - --web.external-url=${FRONTEND_URL:-http://localhost:3000}/prometheus/
+      - --web.route-prefix=/prometheus/
     volumes:
       - ./backend/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./backend/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -506,16 +514,18 @@ services:
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/prometheus/-/ready"]
       <<: *healthcheck
 
-  # Алерты уходят письмом (по умолчанию — в Mailpit, http://localhost:8025).
+  # Алерты уходят письмом (по умолчанию — в Mailpit, http://localhost:8025/mailpit/).
   alertmanager:
     <<: *service-defaults
     image: prom/alertmanager:v0.28.1
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
+      - --web.external-url=${FRONTEND_URL:-http://localhost:3000}/alertmanager/
+      - --web.route-prefix=/alertmanager/
     configs:
       - source: alertmanager
         target: /etc/alertmanager/alertmanager.yml
@@ -534,6 +544,8 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/benefit-services.json
+      GF_SERVER_ROOT_URL: ${FRONTEND_URL:-http://localhost:3000}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - ./backend/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./backend/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
