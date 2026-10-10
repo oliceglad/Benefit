@@ -116,6 +116,9 @@ def _response(
     details: list[dict[str, Any]] | None = None,
     headers: dict[str, str] | None = None,
 ) -> JSONResponse:
+    from benefit_common.metrics import record_error
+
+    record_error(code, status_code)
     return JSONResponse(
         status_code=status_code,
         content=error_body(code, message, service=service, details=details),

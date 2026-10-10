@@ -56,6 +56,9 @@ docker compose up --build
 | Employers / Swagger       | http://localhost:8000/api/v1/employers/docs |
 | Talent (поиск) / Swagger  | http://localhost:8000/api/v1/talent/docs |
 | Mailpit (входящие письма) | http://localhost:8025                   |
+| Grafana (admin / benefit-grafana) | http://localhost:3001           |
+| Prometheus                | http://localhost:9090                   |
+| Alertmanager              | http://localhost:9093                   |
 | ФСП ID (mock)             | http://localhost:8003                   |
 | Keycloak (admin/admin)    | http://localhost:8080                   |
 
@@ -84,6 +87,60 @@ WebSocket `/api/v1/chat/ws`) → chat-service, `/api/v1/employers/*` и
 ```bash
 python backend/e2e/smoke_test.py   # нужны пакеты httpx и httpx-ws
 ```
+
+## Мониторинг (Prometheus, Grafana, Alertmanager)
+
+Стек поднимается вместе с `docker compose up`. Конфигурация лежит в
+`backend/monitoring`.
+
+**Что собирается:**
+- **Сервисы** (`GET /metrics` во внутренней сети; через шлюз — 404).
+  Метрики подключаются в `benefit_common.setup_app`, поэтому есть у каждого
+  сервиса:
+  - `benefit_http_requests_total`, `benefit_http_request_duration_seconds` —
+    запросы и время по методу, шаблону маршрута
+    (`/api/v1/employers/vacancies/{vacancy_id}`) и статусу;
+  - `benefit_app_errors_total{code,status}` — ошибки по коду из единого
+    формата: `invalid_credentials`, `upstream_unavailable`,
+    `database_unavailable`, …;
+  - `benefit_upstream_requests_total{target,outcome}` — вызовы соседних
+    сервисов: `ok`, `client_error`, `server_error`, `timeout`, `unavailable`;
+  - `benefit_outbox_*` — доставка событий между сервисами (доставлено,
+    повторы, отброшено), очередь и возраст старейшего события;
+  - `benefit_websocket_connections`, `benefit_websocket_users` — чат онлайн.
+- **Базы данных** — postgres-exporter, все 9 баз: доступность, подключения,
+  транзакции, размер.
+- **Шлюз** — nginx-exporter (`stub_status` на порту 8081, только в сети
+  docker).
+
+**Дашборды Grafana** (папка Benefit):
+- «Benefit — сервисы»: состояние, RPS, 5xx, p95, активные алерты, ошибки по
+  кодам, медленные маршруты, связи сервисов, outbox, входы, чат. Фильтр по
+  сервису.
+- «Benefit — инфраструктура»: PostgreSQL и шлюз.
+
+**Алерты** (`backend/monitoring/prometheus/alerts.yml`) уходят письмом через
+Alertmanager, локально — в Mailpit:
+
+| Алерт | Когда |
+|---|---|
+| ServiceDown / GatewayDown / PostgresDown | сервис, шлюз или база не отвечает больше минуты |
+| DatabaseErrors | запросы падают с «База данных недоступна» |
+| HighErrorRate | больше 5% ответов 5xx за 5 минут |
+| InternalErrors | необработанные исключения (искать в логах по request_id) |
+| HighLatency | p95 больше 1 с в течение 10 минут |
+| UpstreamFailures | сервис не может достучаться до соседа |
+| OutboxStuck / OutboxDeliveryFailed | события не доставляются больше 10 минут или отброшены |
+| MailUnavailable | письма (коды подтверждения) не отправляются |
+| CompanyRegistryUnavailable | реестр ФНС недоступен |
+| LoginBruteForce / CsrfRejections | перебор паролей и кодов, запросы без CSRF |
+| PostgresConnectionsHigh | занято больше 80% подключений |
+
+Получатель и SMTP задаются в `.env`: `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM`,
+`ALERT_SMTP_HOST`, `ALERT_SMTP_USER`, `ALERT_SMTP_PASSWORD`,
+`ALERT_SMTP_REQUIRE_TLS`. Пароль Grafana — `GRAFANA_ADMIN_PASSWORD`, его
+нужно сменить в production. Grafana, Prometheus и Alertmanager опубликованы
+только на 127.0.0.1.
 
 ## Ошибки и диагностика
 

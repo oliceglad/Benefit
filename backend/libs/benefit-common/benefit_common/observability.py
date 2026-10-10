@@ -16,6 +16,7 @@ from benefit_common.context import (
     service_name_var,
 )
 from benefit_common.errors import register_exception_handlers, unhandled_error_handler
+from benefit_common.metrics import setup_metrics
 from benefit_common.settings import get_common_settings
 
 LOG_FORMAT = (
@@ -99,3 +100,5 @@ def setup_app(app: FastAPI, service: str) -> None:
     get_common_settings()
     register_exception_handlers(app)
     app.add_middleware(RequestContextMiddleware, service=service)
+    # Снаружи RequestContextMiddleware: учитывает и ответы 500 от него.
+    setup_metrics(app)

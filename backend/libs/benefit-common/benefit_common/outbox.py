@@ -28,6 +28,14 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
 
+from benefit_common.metrics import (
+    OUTBOX_DELIVERED,
+    OUTBOX_FAILED,
+    OUTBOX_OLDEST_SECONDS,
+    OUTBOX_PENDING,
+    OUTBOX_RETRIES,
+)
+
 logger = logging.getLogger(__name__)
 
 Handler = Callable[[dict[str, Any]], Awaitable[None]]
@@ -76,6 +84,11 @@ class OutboxRelay:
         self.model = model
         self.session_factory = session_factory
         self.handlers = handlers
+        # Счётчики с нулём для всех видов сообщений: алерт сработает уже на
+        # первой неудачной доставке.
+        for kind in handlers:
+            for counter in (OUTBOX_DELIVERED, OUTBOX_RETRIES, OUTBOX_FAILED):
+                counter.labels(kind)
         self.interval = interval
         self.batch_size = batch_size
         self.max_attempts = max_attempts
@@ -107,19 +120,39 @@ class OutboxRelay:
             for message in messages:
                 await self._deliver(message)
             await session.commit()
+            await self._observe_backlog(session, now)
         return len(messages)
+
+    async def _observe_backlog(self, session: AsyncSession, now: datetime) -> None:
+        """Размер очереди и возраст самого старого сообщения — для алертов
+        «сосед не принимает сообщения»."""
+        model = self.model
+        count, oldest = (
+            await session.execute(
+                select(func.count(), func.min(model.created_at)).where(
+                    model.sent_at.is_(None), model.failed_at.is_(None)
+                )
+            )
+        ).one()
+        table = model.__tablename__
+        OUTBOX_PENDING.labels(table).set(count)
+        OUTBOX_OLDEST_SECONDS.labels(table).set(
+            (now - oldest).total_seconds() if oldest else 0
+        )
 
     async def _deliver(self, message: Any) -> None:
         handler = self.handlers.get(message.kind)
         now = datetime.now(UTC)
         if handler is None:
             message.failed_at = now
+            OUTBOX_FAILED.labels(message.kind).inc()
             message.last_error = f"No handler for {message.kind}"
             logger.error("Outbox: no handler for %s", message.kind)
             return
         try:
             await handler(message.payload)
         except PermanentDeliveryError as exc:
+            OUTBOX_FAILED.labels(message.kind).inc()
             message.failed_at = now
             message.last_error = str(exc)[:2000]
             logger.warning("Outbox %s #%s dropped: %s", message.kind, message.id, exc)
@@ -127,9 +160,11 @@ class OutboxRelay:
             message.attempts += 1
             message.last_error = f"{type(exc).__name__}: {exc}"[:2000]
             if message.attempts >= self.max_attempts:
+                OUTBOX_FAILED.labels(message.kind).inc()
                 message.failed_at = now
                 logger.error("Outbox %s #%s failed: %s", message.kind, message.id, exc)
             else:
+                OUTBOX_RETRIES.labels(message.kind).inc()
                 message.next_attempt_at = now + self._backoff(message.attempts)
                 logger.info(
                     "Outbox %s #%s retry %s: %s",
@@ -139,6 +174,7 @@ class OutboxRelay:
                     exc,
                 )
         else:
+            OUTBOX_DELIVERED.labels(message.kind).inc()
             message.sent_at = now
 
     async def run(self) -> None:

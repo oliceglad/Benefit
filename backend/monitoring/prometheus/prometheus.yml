@@ -1,0 +1,92 @@
+# Prometheus: метрики сервисов Benefit, шлюза и баз данных.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: benefit
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # Сервисы Benefit: GET /metrics (benefit_common.metrics). Имя job —
+  # имя сервиса; tier=app отличает их от инфраструктуры в алертах.
+  - job_name: services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - core:8000
+          - auth-service:8000
+          - candidate-service:8000
+          - assessment-service:8000
+          - applications-service:8000
+          - notification-service:8000
+          - chat-service:8000
+          - employer-service:8000
+          - matching-service:8000
+          - mail-service:8000
+        labels:
+          tier: app
+    relabel_configs:
+      # job = имя сервиса (auth-service:8000 → auth-service).
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: job
+
+  # Шлюз nginx (nginx-prometheus-exporter читает stub_status).
+  - job_name: gateway
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
+        labels:
+          tier: infra
+
+  # PostgreSQL: один экспортёр опрашивает все базы (multi-target).
+  - job_name: postgres
+    metrics_path: /probe
+    static_configs:
+      - targets: ["db:5432/benefit"]
+        labels: {auth_module: core, database: core}
+      - targets: ["auth-db:5432/auth"]
+        labels: {auth_module: auth, database: auth}
+      - targets: ["candidate-db:5432/candidates"]
+        labels: {auth_module: candidate, database: candidates}
+      - targets: ["assessment-db:5432/assessments"]
+        labels: {auth_module: assessment, database: assessments}
+      - targets: ["applications-db:5432/applications"]
+        labels: {auth_module: applications, database: applications}
+      - targets: ["notification-db:5432/notifications"]
+        labels: {auth_module: notification, database: notifications}
+      - targets: ["chat-db:5432/chat"]
+        labels: {auth_module: chat, database: chat}
+      - targets: ["employer-db:5432/employers"]
+        labels: {auth_module: employer, database: employers}
+      - targets: ["matching-db:5432/matching"]
+        labels: {auth_module: matching, database: matching}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [auth_module]
+        target_label: __param_auth_module
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: postgres-exporter:9187
+      - target_label: tier
+        replacement: infra
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          tier: infra
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+        labels:
+          tier: infra

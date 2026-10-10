@@ -1,0 +1,161 @@
+# Правила алертов Benefit. severity: critical — пользователи не могут
+# работать, warning — деградация или нужен разбор.
+groups:
+  - name: availability
+    rules:
+      - alert: ServiceDown
+        expr: up{tier="app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} недоступен"
+          description: "Prometheus не может получить метрики {{ $labels.job }} больше минуты: сервис упал или не отвечает."
+
+      - alert: GatewayDown
+        expr: nginx_up == 0 or up{job="gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Шлюз API недоступен"
+          description: "nginx-шлюз не отвечает: весь API недоступен пользователям."
+
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "База {{ $labels.database }} недоступна"
+          description: "PostgreSQL {{ $labels.instance }} не отвечает экспортёру."
+
+      - alert: DatabaseErrors
+        expr: sum by (job) (increase(benefit_app_errors_total{code="database_unavailable"}[5m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }}: ошибки базы данных"
+          description: "За 5 минут {{ $value | humanize }} запросов завершились ошибкой «База данных недоступна»."
+
+  - name: errors-and-latency
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum by (job) (rate(benefit_http_requests_total{status=~"5.."}[5m]))
+            / sum by (job) (rate(benefit_http_requests_total[5m]))
+          ) > 0.05
+          and sum by (job) (rate(benefit_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }}: много ошибок 5xx"
+          description: "{{ $value | humanizePercentage }} запросов к {{ $labels.job }} завершаются ошибкой сервера."
+
+      - alert: InternalErrors
+        expr: sum by (job) (increase(benefit_app_errors_total{code="internal_error"}[10m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }}: непредвиденные ошибки"
+          description: "{{ $value | humanize }} необработанных исключений за 10 минут — смотрите логи сервиса по request_id."
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (job, le) (rate(benefit_http_request_duration_seconds_bucket[5m]))
+          ) > 1
+          and sum by (job) (rate(benefit_http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }}: медленные ответы"
+          description: "95% запросов к {{ $labels.job }} выполняются дольше {{ $value | humanizeDuration }}."
+
+      - alert: UpstreamFailures
+        expr: |
+          sum by (job, target) (
+            rate(benefit_upstream_requests_total{outcome=~"timeout|unavailable|server_error"}[5m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} → {{ $labels.target }}: сбои вызовов"
+          description: "{{ $labels.job }} не может достучаться до {{ $labels.target }} (таймауты, недоступность или 5xx)."
+
+  - name: delivery
+    rules:
+      - alert: OutboxStuck
+        expr: max by (job, table) (benefit_outbox_oldest_pending_seconds) > 600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }}: события не доставляются"
+          description: "Самое старое сообщение в {{ $labels.table }} ждёт {{ $value | humanizeDuration }}: получатель не принимает события (уведомления, чат, удаление данных)."
+
+      - alert: OutboxDeliveryFailed
+        expr: |
+          sum by (job, kind) (
+            increase(benefit_outbox_failed_total[15m])
+            or (benefit_outbox_failed_total unless benefit_outbox_failed_total offset 15m)
+          ) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }}: доставка «{{ $labels.kind }}» прекращена"
+          description: "Сообщения outbox отброшены после всех попыток или постоянной ошибки — нужен разбор (last_error в таблице outbox)."
+
+      - alert: MailUnavailable
+        expr: sum(increase(benefit_app_errors_total{code="mail_unavailable"}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Письма не отправляются"
+          description: "Почтовый сервис не принимает письма: пользователи не получают коды подтверждения и восстановления пароля."
+
+      - alert: CompanyRegistryUnavailable
+        expr: sum(increase(benefit_app_errors_total{code="registry_unavailable"}[15m])) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "Реестр ФНС недоступен"
+          description: "Проверка компаний по ЕГРЮЛ не работает (недоступен egrul.nalog.ru или требует капчу)."
+
+  - name: security
+    rules:
+      - alert: LoginBruteForce
+        expr: |
+          sum(rate(benefit_app_errors_total{job="auth-service", code=~"invalid_credentials|account_locked|invalid_code|too_many_attempts"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Подозрение на перебор паролей или кодов"
+          description: "Больше 30 неудачных входов или вводов кода в минуту."
+
+      - alert: CsrfRejections
+        expr: sum(rate(benefit_app_errors_total{code="csrf_failed"}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Много запросов без CSRF-токена"
+          description: "Возможна CSRF-атака или ошибка фронтенда при работе с cookie."
+
+  - name: infrastructure
+    rules:
+      - alert: PostgresConnectionsHigh
+        expr: |
+          sum by (instance, database) (pg_stat_activity_count)
+          / max by (instance, database) (pg_settings_max_connections) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "База {{ $labels.database }}: мало свободных подключений"
+          description: "Занято {{ $value | humanizePercentage }} подключений PostgreSQL."

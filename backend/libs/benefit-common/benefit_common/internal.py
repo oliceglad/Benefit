@@ -6,6 +6,7 @@
 
 import hmac
 import logging
+import time
 from typing import Annotated, Any
 
 import httpx
@@ -17,6 +18,7 @@ from benefit_common.context import (
     service_title,
 )
 from benefit_common.errors import AppError, ServiceUnavailableError
+from benefit_common.metrics import UPSTREAM_DURATION, UPSTREAM_REQUESTS
 from benefit_common.settings import get_common_settings
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,10 @@ class InternalClient:
         self.service = service if service.endswith("-service") else f"{service}-service"
         self.timeout = timeout
 
+    def _observe(self, outcome: str, started: float) -> None:
+        UPSTREAM_REQUESTS.labels(self.service, outcome).inc()
+        UPSTREAM_DURATION.labels(self.service).observe(time.perf_counter() - started)
+
     def _unavailable(self, reason: str) -> ServiceUnavailableError:
         return ServiceUnavailableError(
             f"{service_title(self.service).capitalize()} {reason}. "
@@ -66,6 +72,7 @@ class InternalClient:
         if request_id:
             # Сквозной ID: запрос виден в логах всех сервисов цепочки.
             headers[REQUEST_ID_HEADER] = request_id
+        started = time.perf_counter()
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.request(
@@ -76,11 +83,21 @@ class InternalClient:
                     headers=headers,
                 )
         except httpx.TimeoutException as exc:
+            self._observe("timeout", started)
             logger.warning("%s %s%s timed out", method, self.service, path)
             raise self._unavailable("не ответил вовремя") from exc
         except httpx.HTTPError as exc:
+            self._observe("unavailable", started)
             logger.warning("%s %s%s failed: %s", method, self.service, path, exc)
             raise self._unavailable("недоступен") from exc
+        self._observe(
+            "server_error"
+            if response.status_code >= 500
+            else "client_error"
+            if response.status_code >= 400
+            else "ok",
+            started,
+        )
         if response.status_code >= 500:
             logger.warning(
                 "%s %s%s returned %s", method, self.service, path, response.status_code

@@ -23,6 +23,7 @@ from typing import Any
 
 import asyncpg
 from fastapi import WebSocket
+from prometheus_client import Gauge
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,6 +50,12 @@ async def publish(
     )
 
 
+WEBSOCKETS = Gauge(
+    "benefit_websocket_connections", "Открытые WebSocket-подключения чата"
+)
+ONLINE_USERS = Gauge("benefit_websocket_users", "Пользователи онлайн в чате")
+
+
 class Hub:
     def __init__(self) -> None:
         self.connections: dict[uuid.UUID, set[WebSocket]] = defaultdict(set)
@@ -58,6 +65,7 @@ class Hub:
 
     def connect(self, user_id: uuid.UUID, websocket: WebSocket) -> None:
         self.connections[user_id].add(websocket)
+        self._observe()
 
     def disconnect(self, user_id: uuid.UUID, websocket: WebSocket) -> None:
         sockets = self.connections.get(user_id)
@@ -65,6 +73,11 @@ class Hub:
             sockets.discard(websocket)
             if not sockets:
                 del self.connections[user_id]
+        self._observe()
+
+    def _observe(self) -> None:
+        WEBSOCKETS.set(sum(len(s) for s in self.connections.values()))
+        ONLINE_USERS.set(len(self.connections))
 
     def is_online(self, user_id: uuid.UUID) -> bool:
         return bool(self.connections.get(user_id))

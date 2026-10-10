@@ -35,6 +35,8 @@ x-service-urls: &service-urls
   EMPLOYER_SERVICE_URL: http://employer-service:8000
   MATCHING_SERVICE_URL: http://matching-service:8000
   MAIL_SERVICE_URL: http://mail-service:8000
+  APPLICATIONS_SERVICE_URL: http://applications-service:8000
+  ASSESSMENT_SERVICE_URL: http://assessment-service:8000
 
 x-healthcheck: &healthcheck
   interval: 10s
@@ -469,6 +471,79 @@ services:
     volumes:
       - ./backend/keycloak:/opt/keycloak/data/import:ro
 
+  # --- Мониторинг: Prometheus, Alertmanager, Grafana ----------------------
+  # Метрики сервисов (GET /metrics во внутренней сети), шлюза и баз данных.
+  prometheus:
+    <<: *service-defaults
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+      - --web.enable-lifecycle
+    volumes:
+      - ./backend/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./backend/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      <<: *healthcheck
+
+  # Алерты уходят письмом (по умолчанию — в Mailpit, http://localhost:8025).
+  alertmanager:
+    <<: *service-defaults
+    image: prom/alertmanager:v0.28.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    configs:
+      - source: alertmanager
+        target: /etc/alertmanager/alertmanager.yml
+    volumes:
+      - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
+
+  grafana:
+    <<: *service-defaults
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-benefit-grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/benefit-services.json
+    volumes:
+      - ./backend/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./backend/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      # 3000 занят фронтендом.
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+      - alertmanager
+
+  # Экспортёр PostgreSQL: опрашивает все базы (auth-модули — в configs).
+  postgres-exporter:
+    <<: *service-defaults
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+    command: ["--config.file=/etc/postgres_exporter.yml"]
+    configs:
+      - source: postgres_exporter
+        target: /etc/postgres_exporter.yml
+
+  # Экспортёр шлюза: читает stub_status nginx (порт 8081 только в сети docker).
+  nginx-exporter:
+    <<: *service-defaults
+    image: nginx/nginx-prometheus-exporter:1.4.2
+    command: ["--nginx.scrape-uri=http://gateway:8081/stub_status"]
+    depends_on:
+      - gateway
+
   # frontend:
   #   build:
   #     context: ./frontend
@@ -476,6 +551,52 @@ services:
   #     - "3000:3000"
   #   depends_on:
   #     - gateway
+
+configs:
+  # Пароли баз подставляются из .env (те же, что у сервисов).
+  postgres_exporter:
+    content: |
+      auth_modules:
+        core: {type: userpass, userpass: {username: "${POSTGRES_USER}", password: "${POSTGRES_PASSWORD}"}, options: {sslmode: disable}}
+        auth: {type: userpass, userpass: {username: "${AUTH_DB_USER:-auth}", password: "${AUTH_DB_PASSWORD:-auth}"}, options: {sslmode: disable}}
+        candidate: {type: userpass, userpass: {username: "${CANDIDATE_DB_USER:-candidates}", password: "${CANDIDATE_DB_PASSWORD:-candidates}"}, options: {sslmode: disable}}
+        assessment: {type: userpass, userpass: {username: "${ASSESSMENT_DB_USER:-assessments}", password: "${ASSESSMENT_DB_PASSWORD:-assessments}"}, options: {sslmode: disable}}
+        applications: {type: userpass, userpass: {username: "${APPLICATIONS_DB_USER:-applications}", password: "${APPLICATIONS_DB_PASSWORD:-applications}"}, options: {sslmode: disable}}
+        notification: {type: userpass, userpass: {username: "${NOTIFICATION_DB_USER:-notifications}", password: "${NOTIFICATION_DB_PASSWORD:-notifications}"}, options: {sslmode: disable}}
+        chat: {type: userpass, userpass: {username: "${CHAT_DB_USER:-chat}", password: "${CHAT_DB_PASSWORD:-chat}"}, options: {sslmode: disable}}
+        employer: {type: userpass, userpass: {username: "${EMPLOYER_DB_USER:-employers}", password: "${EMPLOYER_DB_PASSWORD:-employers}"}, options: {sslmode: disable}}
+        matching: {type: userpass, userpass: {username: "${MATCHING_DB_USER:-matching}", password: "${MATCHING_DB_PASSWORD:-matching}"}, options: {sslmode: disable}}
+  # Куда слать алерты: по умолчанию — письмом в Mailpit.
+  alertmanager:
+    content: |
+      global:
+        smtp_smarthost: "${ALERT_SMTP_HOST:-mailpit:1025}"
+        smtp_from: "${ALERT_EMAIL_FROM:-alerts@benefit.local}"
+        smtp_auth_username: "${ALERT_SMTP_USER:-}"
+        smtp_auth_password: "${ALERT_SMTP_PASSWORD:-}"
+        smtp_require_tls: ${ALERT_SMTP_REQUIRE_TLS:-false}
+      route:
+        receiver: email
+        group_by: [alertname, job]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 4h
+        routes:
+          - matchers: ['severity="critical"']
+            receiver: email
+            repeat_interval: 1h
+      receivers:
+        - name: email
+          email_configs:
+            - to: "${ALERT_EMAIL_TO:-ops@benefit.local}"
+              send_resolved: true
+      inhibit_rules:
+        # Сервис лежит — не дублируем алертами о его ошибках и задержках.
+        - source_matchers: ['alertname="ServiceDown"']
+          target_matchers: ['severity="warning"']
+          equal: [job]
+        - source_matchers: ['alertname="GatewayDown"']
+          target_matchers: ['alertname=~"HighErrorRate|HighLatency"']
 
 volumes:
   postgres_data:
@@ -489,3 +610,6 @@ volumes:
   chat_files:
   employer_db_data:
   matching_db_data:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
