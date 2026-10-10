@@ -4,7 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { AlertCircle } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
-import { loginCandidate } from '@/features/auth/api/auth'
+import { loginAccount } from '@/features/auth/api/auth'
 import { loginSchema, type LoginValues } from '@/features/auth/model/login-schema'
 import { verificationFlow } from '@/features/auth/model/verification-flow'
 import { AuthPageLayout } from '@/features/auth/ui/auth-page-layout'
@@ -36,8 +36,8 @@ export function LoginPage() {
     defaultValues: { email: '', password: '' },
   })
   const login = useMutation({
-    mutationFn: loginCandidate,
-    onSuccess: () => navigate({ to: '/profile', search: { section: 'personal' }, replace: true }),
+    mutationFn: loginAccount,
+    onSuccess: () => navigate({ to: '/', replace: true }),
   })
   const emailNotVerified = isApiError(login.error) && login.error.code === 'email_not_verified'
 
@@ -52,7 +52,7 @@ export function LoginPage() {
         <CardHeader>
           <CardTitle>Вход в кабинет</CardTitle>
           <CardDescription>
-            Используйте почту и пароль вашей учётной записи кандидата.
+            Используйте почту и пароль кандидата или работодателя.
           </CardDescription>
         </CardHeader>
         <CardContent>

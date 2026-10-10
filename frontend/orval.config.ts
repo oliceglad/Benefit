@@ -21,6 +21,18 @@ const output = (target: string, schemas: string) => ({
 })
 
 export default defineConfig({
+  chat: {
+    input: './openapi/chat.openapi.json',
+    output: output('./src/shared/api/generated/chat/chat.ts', './src/shared/api/generated/chat/models'),
+  },
+  employers: {
+    input: './openapi/employers.openapi.json',
+    output: output('./src/shared/api/generated/employers/employers.ts', './src/shared/api/generated/employers/models'),
+  },
+  applications: {
+    input: './openapi/applications.openapi.json',
+    output: output('./src/shared/api/generated/applications/applications.ts', './src/shared/api/generated/applications/models'),
+  },
   auth: {
     input: './openapi/auth.openapi.json',
     output: output(

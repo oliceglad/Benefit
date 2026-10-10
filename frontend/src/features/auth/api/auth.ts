@@ -15,26 +15,27 @@ import { ApiError, isApiError } from '@/shared/api/transport/api-error'
 import { invalidateSessionForLogout } from '@/shared/api/transport/orval-fetch'
 import { session, type SessionUser } from '@/shared/session/session'
 
-type RegisterCandidateInput = {
+type RegisterAccountInput = {
   email: string
   password: string
   fullName?: string
+  role?: 'candidate' | 'employer'
 }
 
 let restoreOperation: Promise<boolean> | null = null
 
-function candidateUser(user: {
+function accountUser(user: {
   id: string
   email: string
   role: string
   full_name?: string | null
   is_email_verified: boolean
 }): SessionUser {
-  if (user.role !== 'candidate') {
+  if (user.role !== 'candidate' && user.role !== 'employer') {
     throw new ApiError({
       status: 403,
-      code: 'candidate_access_required',
-      message: 'Этот кабинет доступен только пользователям с ролью кандидата.',
+      code: 'unsupported_account_role',
+      message: 'Для этого кабинета нужна роль кандидата или работодателя.',
     })
   }
   return {
@@ -46,10 +47,10 @@ function candidateUser(user: {
   }
 }
 
-async function loadCurrentCandidate(revision: number): Promise<boolean> {
+async function loadCurrentAccount(revision: number): Promise<boolean> {
   const { data: user } = await meApiV1UsersMeGet()
   if (!session.isRevisionCurrent(revision)) return false
-  session.setAuthenticated(candidateUser(user))
+  session.setAuthenticated(accountUser(user))
   return true
 }
 
@@ -61,7 +62,7 @@ async function clearServerSession(): Promise<void> {
   }
 }
 
-async function establishCandidateSession(tokenData: TokenResponse): Promise<void> {
+async function establishAccountSession(tokenData: TokenResponse): Promise<void> {
   if (tokenData.delivery !== 'cookie') {
     throw new ApiError({
       status: 502,
@@ -72,7 +73,7 @@ async function establishCandidateSession(tokenData: TokenResponse): Promise<void
 
   const revision = session.getRevision()
   try {
-    if (!(await loadCurrentCandidate(revision))) {
+    if (!(await loadCurrentAccount(revision))) {
       throw new ApiError({
         status: 401,
         code: 'session_changed',
@@ -86,7 +87,7 @@ async function establishCandidateSession(tokenData: TokenResponse): Promise<void
   }
 }
 
-export async function restoreCandidateSession(): Promise<boolean> {
+export async function restoreAccountSession(): Promise<boolean> {
   const snapshot = session.getSnapshot()
   if (snapshot.status === 'authenticated') return true
   if (snapshot.status === 'anonymous') return false
@@ -95,11 +96,11 @@ export async function restoreCandidateSession(): Promise<boolean> {
   const revision = session.getRevision()
   const operation = (async () => {
     try {
-      return await loadCurrentCandidate(revision)
+      return await loadCurrentAccount(revision)
     } catch (error) {
       session.setAnonymousIfCurrent(revision)
-      if (isApiError(error) && (error.status === 401 || error.code === 'candidate_access_required')) {
-        if (error.code === 'candidate_access_required') await clearServerSession()
+      if (isApiError(error) && (error.status === 401 || error.code === 'unsupported_account_role')) {
+        if (error.code === 'unsupported_account_role') await clearServerSession()
         return false
       }
       throw error
@@ -111,25 +112,25 @@ export async function restoreCandidateSession(): Promise<boolean> {
   return operation
 }
 
-export async function loginCandidate(credentials: LoginRequest): Promise<void> {
+export async function loginAccount(credentials: LoginRequest): Promise<void> {
   session.setUnknown()
   try {
     const tokenResponse = await loginApiV1AuthLoginPost(credentials)
     if (tokenResponse.status !== 200) {
       throw new ApiError({ status: tokenResponse.status, code: 'login_failed', message: 'Не удалось войти.' })
     }
-    await establishCandidateSession(tokenResponse.data)
+    await establishAccountSession(tokenResponse.data)
   } catch (error) {
     session.setAnonymous()
     throw error
   }
 }
 
-export async function registerCandidate(input: RegisterCandidateInput): Promise<RegisterResponse> {
+export async function registerAccount(input: RegisterAccountInput): Promise<RegisterResponse> {
   const response = await registerApiV1AuthRegisterPost({
     email: input.email,
     password: input.password,
-    role: 'candidate',
+    role: input.role ?? 'candidate',
     full_name: input.fullName || null,
   })
   if (response.status !== 201) {
@@ -142,7 +143,7 @@ export async function registerCandidate(input: RegisterCandidateInput): Promise<
   return response.data
 }
 
-export async function verifyCandidateEmail(email: string, code: string): Promise<void> {
+export async function verifyAccountEmail(email: string, code: string): Promise<void> {
   session.setUnknown()
   try {
     const response = await verifyEmailApiV1AuthVerifyEmailPost({ email, code })
@@ -153,7 +154,7 @@ export async function verifyCandidateEmail(email: string, code: string): Promise
         message: 'Не удалось подтвердить почту.',
       })
     }
-    await establishCandidateSession(response.data)
+    await establishAccountSession(response.data)
   } catch (error) {
     session.setAnonymous()
     throw error
@@ -171,7 +172,7 @@ export async function resendVerificationCode(email: string): Promise<void> {
   }
 }
 
-export async function logoutCandidate(): Promise<void> {
+export async function logoutAccount(): Promise<void> {
   await invalidateSessionForLogout()
   await logoutApiV1AuthLogoutPost()
 }

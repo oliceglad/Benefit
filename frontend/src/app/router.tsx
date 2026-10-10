@@ -3,11 +3,13 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
 } from '@tanstack/react-router'
 
 import { CandidateLayout } from '@/app/layouts/candidate-layout'
-import { restoreCandidateSession } from '@/features/auth/api/auth'
+import { CabinetLayout } from '@/app/layouts/cabinet-layout'
+import { restoreAccountSession } from '@/features/auth/api/auth'
 import { LoginPage } from '@/features/auth/ui/login-page'
 import { RegisterPage } from '@/features/auth/ui/register-page'
 import { VerifyEmailPage } from '@/features/auth/ui/verify-email-page'
@@ -19,12 +21,20 @@ import { PrivacyPolicyPage } from '@/features/legal/ui/privacy-policy-page'
 import { PersonalDataConsentPage } from '@/features/legal/ui/personal-data-consent-page'
 import { PublicationConsentPage } from '@/features/legal/ui/publication-consent-page'
 import { TermsPage } from '@/features/legal/ui/terms-page'
+import { vacancySearchSchema } from '@/features/vacancies/model/vacancy-search'
+import { session } from '@/shared/session/session'
 
 const rootRoute = createRootRoute({ component: Outlet })
 
-async function hasCandidateSession(ignoreRestoreError = false): Promise<boolean> {
+function homeRedirect() {
+  return session.getSnapshot().user?.role === 'employer'
+    ? redirect({ to: '/vacancies', search: { offset: 0 }, replace: true })
+    : redirect({ to: '/profile', search: { section: undefined }, replace: true })
+}
+
+async function hasAccountSession(ignoreRestoreError = false): Promise<boolean> {
   try {
-    return await restoreCandidateSession()
+    return await restoreAccountSession()
   } catch (error) {
     if (ignoreRestoreError) return false
     throw error
@@ -35,9 +45,9 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: async () => {
-    if (await hasCandidateSession(true)) {
+    if (await hasAccountSession(true)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
+      throw homeRedirect()
     }
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw redirect({ to: '/login', replace: true })
@@ -48,9 +58,9 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: async () => {
-    if (await hasCandidateSession(true)) {
+    if (await hasAccountSession(true)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
+      throw homeRedirect()
     }
   },
   component: LoginPage,
@@ -60,9 +70,9 @@ const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
   beforeLoad: async () => {
-    if (await hasCandidateSession(true)) {
+    if (await hasAccountSession(true)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
+      throw homeRedirect()
     }
   },
   component: RegisterPage,
@@ -72,9 +82,9 @@ const verifyEmailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/verify-email',
   beforeLoad: async () => {
-    if (await hasCandidateSession(true)) {
+    if (await hasAccountSession(true)) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
-      throw redirect({ to: '/profile', search: { section: undefined }, replace: true })
+      throw homeRedirect()
     }
   },
   component: VerifyEmailPage,
@@ -108,13 +118,78 @@ const candidateLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: '_candidate',
   beforeLoad: async () => {
-    if (!(await hasCandidateSession())) {
+    if (!(await hasAccountSession())) {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw redirect({ to: '/login', replace: true })
+    }
+    if (session.getSnapshot().user?.role !== 'candidate') {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw homeRedirect()
     }
   },
   component: CandidateLayout,
 })
+
+const cabinetLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: '_cabinet',
+  beforeLoad: async () => {
+    if (!(await hasAccountSession())) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: '/login', replace: true })
+    }
+  },
+  component: CabinetLayout,
+})
+
+const vacanciesRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute, path: '/vacancies',
+  validateSearch: (search: Record<string, unknown>) => vacancySearchSchema.parse(search),
+  component: lazyRouteComponent(() => import('@/features/vacancies/ui/vacancies-page'), 'VacanciesPage'),
+})
+const vacancyDetailRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/$vacancyId',
+  component: lazyRouteComponent(() => import('@/app/pages/vacancy-page'), 'VacancyPage'),
+})
+const messagesRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute, path: '/messages',
+  component: lazyRouteComponent(() => import('@/features/chat/ui/messages-page'), 'MessagesPage'),
+})
+const messageThreadRoute = createRoute({
+  getParentRoute: () => messagesRoute, path: '/$conversationId',
+})
+function requireEmployer() {
+  if (session.getSnapshot().user?.role !== 'employer') {
+    // eslint-disable-next-line @typescript-eslint/only-throw-error
+    throw redirect({ to: '/vacancies', search: { offset: 0 } })
+  }
+}
+const vacancyCreateRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/new',
+  beforeLoad: requireEmployer,
+  component: lazyRouteComponent(() => import('@/features/vacancies/ui/vacancy-editor-page'), 'VacancyEditorPage'),
+})
+const vacancyEditRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/$vacancyId/edit',
+  beforeLoad: requireEmployer,
+  component: lazyRouteComponent(() => import('@/features/vacancies/ui/vacancy-editor-page'), 'VacancyEditorPage'),
+})
+const pipelinesRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute, path: '/pipelines',
+  beforeLoad: () => {
+    if (session.getSnapshot().user?.role !== 'employer') {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error
+      throw redirect({ to: '/vacancies', search: { offset: 0 } })
+    }
+  },
+  component: lazyRouteComponent(() => import('@/features/pipelines/ui/pipelines-page'), 'PipelinesPage'),
+})
+
+const pipelineDesignPreviewRoute = import.meta.env.DEV ? createRoute({
+  getParentRoute: () => rootRoute, path: '/preview/pipelines',
+  beforeLoad: async () => { await hasAccountSession(true) },
+  component: lazyRouteComponent(() => import('@/app/layouts/pipeline-design-preview'), 'PipelineDesignPreview'),
+}) : null
 
 const profileRoute = createRoute({
   getParentRoute: () => candidateLayoutRoute,
@@ -137,6 +212,16 @@ const assessmentAttemptRoute = createRoute({
   component: AssessmentAttemptPage,
 })
 
+// An isolated local design review; production has no unauthenticated employer route.
+const companyDesignPreviewRoute = import.meta.env.DEV ? createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/preview/company',
+  component: lazyRouteComponent(
+    () => import('@/features/employer-company/ui/company-design-preview'),
+    'CompanyDesignPreview',
+  ),
+}) : null
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -146,6 +231,9 @@ const routeTree = rootRoute.addChildren([
   termsRoute,
   personalDataConsentRoute,
   publicationConsentRoute,
+  ...(companyDesignPreviewRoute ? [companyDesignPreviewRoute] : []),
+  ...(pipelineDesignPreviewRoute ? [pipelineDesignPreviewRoute] : []),
+  cabinetLayoutRoute.addChildren([vacanciesRoute, vacancyCreateRoute, vacancyEditRoute, vacancyDetailRoute, pipelinesRoute, messagesRoute.addChildren([messageThreadRoute])]),
   candidateLayoutRoute.addChildren([profileRoute, assessmentsRoute, assessmentAttemptRoute]),
 ])
 

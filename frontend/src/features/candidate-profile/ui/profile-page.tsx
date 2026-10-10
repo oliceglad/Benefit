@@ -14,6 +14,7 @@ import {
 import { profileDraft, useProfileDraft } from '@/features/candidate-profile/model/profile-draft'
 import { isProfileSectionId, nextProfileSection, profileSections, type ProfileSectionId } from '@/features/candidate-profile/model/profile-sections'
 import { ConsentsPublication } from '@/features/candidate-profile/ui/consents-publication'
+import { JuryStepTools } from '@/features/candidate-profile/ui/jury-step-tools'
 import { ContactForm } from '@/features/candidate-profile/ui/contact-form'
 import { ExperienceForm } from '@/features/candidate-profile/ui/experience-form'
 import { PersonalForm } from '@/features/candidate-profile/ui/personal-form'
@@ -42,6 +43,7 @@ export function ProfilePage() {
   const formStartRef = useRef<HTMLDivElement>(null)
   const [importActive, setImportActive] = useState(false)
   const [savingNavigation, setSavingNavigation] = useState(false)
+  const [juryPending, setJuryPending] = useState(false)
   const blocker = useBlocker({
     shouldBlockFn: () => draft.isDirty && !skipBlock.current,
     enableBeforeUnload: () => draft.isDirty,
@@ -117,31 +119,34 @@ export function ProfilePage() {
 
   return (
     <section className="min-w-0 space-y-6 max-lg:-mx-4 max-lg:min-h-svh max-lg:bg-card max-lg:px-4">
-      {isDesktop ? <ProfileSummaryCard profile={profile.data} onNavigate={navigateTo} /> : null}
+      {isDesktop ? <div inert={juryPending}><ProfileSummaryCard profile={profile.data} onNavigate={navigateTo} /></div> : null}
       {!importActive ? (
-        <div ref={formStartRef} className="grid min-w-0 scroll-mt-4 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
-          {isDesktop ? (
-            <nav aria-label="Разделы профиля" className="sticky top-5 space-y-1.5 rounded-2xl border bg-card p-2 shadow-card">
-              {profileSections.map((item) => <button key={item.id} type="button" aria-current={activeSection === item.id ? 'page' : undefined} className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium transition-colors ${activeSection === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`} onClick={() => navigateTo(item.id)}>{item.shortTitle}{activeSection === item.id ? <ArrowRight className="size-4" aria-hidden="true" /> : null}</button>)}
-            </nav>
-          ) : (
-            <header className="sticky top-0 z-30 -mx-4 flex min-w-0 items-center gap-2 border-b bg-card/96 px-4 py-2 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:p-0">
-              <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label="Вернуться к обзору профиля" onClick={() => navigateToOverview()}><ArrowLeft aria-hidden="true" /></Button>
-              <h1 className="min-w-0 break-words text-xl font-semibold">{current.title}</h1>
-            </header>
-          )}
-          <div className="min-w-0" key={activeSection}>
-            {activeSection === 'personal' ? <PersonalForm profile={profile.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
-            {activeSection === 'contacts' ? <ContactForm onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
-            {activeSection === 'specialization' ? <SpecializationForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
-            {activeSection === 'skills' ? <SkillsForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
-            {activeSection === 'experience' ? <ExperienceForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
-            {activeSection === 'preferences' ? <PreferencesForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
-            {activeSection === 'consents' ? <ConsentsPublication profile={profile.data} onNavigate={navigateTo} standalone={!isDesktop} /> : null}
+        <div ref={formStartRef} className="scroll-mt-4 space-y-6">
+          <JuryStepTools section={activeSection} dirty={draft.isDirty} onPendingChange={setJuryPending} />
+          <div inert={juryPending} className="grid min-w-0 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
+            {isDesktop ? (
+              <nav aria-label="Разделы профиля" className="sticky top-5 space-y-1.5 rounded-2xl border bg-card p-2 shadow-card">
+                {profileSections.map((item) => <button key={item.id} type="button" aria-current={activeSection === item.id ? 'page' : undefined} className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium transition-colors ${activeSection === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`} onClick={() => navigateTo(item.id)}>{item.shortTitle}{activeSection === item.id ? <ArrowRight className="size-4" aria-hidden="true" /> : null}</button>)}
+              </nav>
+            ) : (
+              <header className="sticky top-0 z-30 -mx-4 flex min-w-0 items-center gap-2 border-b bg-card/96 px-4 py-2 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:p-0">
+                <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label="Вернуться к обзору профиля" onClick={() => navigateToOverview()}><ArrowLeft aria-hidden="true" /></Button>
+                <h1 className="min-w-0 break-words text-xl font-semibold">{current.title}</h1>
+              </header>
+            )}
+            <div className="min-w-0" key={activeSection}>
+              {activeSection === 'personal' ? <PersonalForm profile={profile.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
+              {activeSection === 'contacts' ? <ContactForm onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
+              {activeSection === 'specialization' ? <SpecializationForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
+              {activeSection === 'skills' ? <SkillsForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
+              {activeSection === 'experience' ? <ExperienceForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
+              {activeSection === 'preferences' ? <PreferencesForm profile={profile.data} dictionaries={dictionaries.data} onContinue={isDesktop ? continueToNext : returnAfterSave} standalone={!isDesktop} /> : null}
+              {activeSection === 'consents' ? <ConsentsPublication profile={profile.data} onNavigate={navigateTo} standalone={!isDesktop} /> : null}
+            </div>
           </div>
         </div>
       ) : null}
-      {isDesktop ? fileActions : null}
+      {isDesktop ? <div inert={juryPending}>{fileActions}</div> : null}
       <UnsavedChangesDialog open={blocker.status === 'blocked'} saving={savingNavigation} onSave={() => void saveAndProceed()} onDiscard={discardAndProceed} onStay={() => { if (blocker.status === 'blocked') blocker.reset() }} />
     </section>
   )

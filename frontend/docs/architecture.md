@@ -23,7 +23,7 @@ desktop and stays avatar-sized on mobile; logout remains the same protected
 session action inside its accessible dropdown.
 
 The navigation inside `features/candidate-profile` is deliberately separate
-from the future cabinet navigation. On mobile `/profile` is the overview with
+from the cabinet navigation. On mobile `/profile` is the overview with
 server-derived section summaries, photo controls and resume actions. A section
 uses `/profile?section=<id>` and becomes a focused edit screen with a back
 action. On desktop the same section URL renders inside the existing sidebar
@@ -88,7 +88,7 @@ The browser uses the backend cookie mode. `benefit_access` and
 `benefit_refresh` are HttpOnly and never enter JavaScript or persistent browser
 storage. The readable `benefit_csrf` cookie is copied into `X-CSRF-Token` for
 POST, PUT, PATCH and DELETE requests. On reload the router restores the current
-candidate through `/users/me`; an expired access cookie causes one shared
+account through `/users/me`; an expired access cookie causes one shared
 bodyless refresh and one replay. Development stays same-origin through the
 Vite `/api` proxy.
 
@@ -116,3 +116,46 @@ come from `VITE_LEGAL_OPERATOR_NAME`, `VITE_LEGAL_OPERATOR_ADDRESS` and
 The document version is aligned with the current candidate-consent version, but
 the pages do not grant consent or replace the document URL returned by the
 candidate-service.
+
+## Vacancies and pipeline composition
+
+`app/layouts/cabinet-layout.tsx` selects the existing candidate shell or the
+employer shell. The shared cabinet navigation belongs to `app`, while feature
+pages own only their content. Auth accepts the existing candidate and employer
+roles; candidate profile routes and employer pipeline routes remain guarded.
+
+`features/vacancies` owns the catalog, owner list, filters, detail, apply,
+create/edit and publication behavior. Its first-vacancy company setup only
+collects the required API fields when no company exists. Full vacancy data and
+the existing need link are preserved on edit. `?q`, `city`, `grade`,
+`work_format`, `salary_min`, employer `status` and `offset` are
+validated at the route. New vacancy and pipeline pages load lazily.
+
+`features/pipelines` owns a frontend constructor with an explicit local-draft
+model. It uses the generated employer client only to read own vacancy options.
+The pipeline draft contains stage configuration, not candidate records, and
+is stored under an account-specific versioned browser key. Persistence to the
+server awaits a backend contract; no pipeline mutation endpoint is called.
+The DEV-only preview composes the same page with a separate local key and
+disables employer API reads. Its authenticated DEV session may read the public
+vacancy catalog to attach a local preview. See `vacancies-and-pipelines.md` for
+scope and the proposed stage catalog.
+
+The candidate-facing pipeline is composed into vacancy detail by
+`app/pages/vacancy-page.tsx` through a render prop. Feature modules do not import
+each other's private files. `shared/ui/branch-graph` owns the API-independent
+SVG rail, branch nodes and single-stage inline expansion through the existing
+Radix Collapsible primitive. Stage lobes echo the Benefit logo and use common
+primary/border/card tokens; there is no separate detail panel. `features/pipelines`
+owns stage grouping and local preview data. DEV snapshots are attached explicitly
+per vacancy and update across tabs. Production never treats them as published
+server configuration or candidate progress.
+
+## Chat
+
+`features/chat` owns the two-role `/messages` workspace and nested conversation
+route. The parent remains mounted when choosing another conversation, preserving
+in-memory drafts without browser storage. The generated chat client uses the
+shared authenticated transport; a Blob option supports arbitrary file downloads.
+The socket invalidates account-scoped queries and REST polling covers reconnects.
+UI states and current API limitations are recorded in [chat.md](chat.md).

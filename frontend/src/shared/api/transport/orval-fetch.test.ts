@@ -1,7 +1,7 @@
 import { delay, http, HttpResponse } from 'msw'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { logoutCandidate } from '@/features/auth/api/auth'
+import { logoutAccount } from '@/features/auth/api/auth'
 import { ApiError } from '@/shared/api/transport/api-error'
 import { orvalFetch, transportTestApi } from '@/shared/api/transport/orval-fetch'
 import { session } from '@/shared/session/session'
@@ -125,7 +125,7 @@ describe('orvalFetch cookie refresh', () => {
 
     const protectedRequest = orvalFetch('/api/v1/candidates/me').catch((error: unknown) => error)
     await refreshStarted
-    const logout = logoutCandidate()
+    const logout = logoutAccount()
     releaseRefresh()
 
     await logout

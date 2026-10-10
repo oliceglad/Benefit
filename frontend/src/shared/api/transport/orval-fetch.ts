@@ -188,10 +188,11 @@ export async function invalidateSessionForLogout(): Promise<void> {
   if (pendingRefresh) await pendingRefresh
 }
 
-export async function orvalFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function orvalFetch<T>(path: string, options: RequestInit & { responseType?: 'blob' } = {}): Promise<T> {
+  const { responseType, ...fetchOptions } = options
   let response: Response
   try {
-    response = await execute(path, options, false)
+    response = await execute(path, fetchOptions, false)
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new ApiError({
@@ -202,7 +203,7 @@ export async function orvalFetch<T>(path: string, options: RequestInit = {}): Pr
   }
   if (!response.ok) throw await toApiError(response)
   return {
-    data: await parseBody(response),
+    data: responseType === 'blob' ? await response.blob() : await parseBody(response),
     status: response.status,
     headers: response.headers,
   } as T

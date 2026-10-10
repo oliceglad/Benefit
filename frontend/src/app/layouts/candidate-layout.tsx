@@ -5,7 +5,8 @@ import { useState } from 'react'
 
 import { queryClient } from '@/app/query-client'
 import { candidateBackLink } from '@/app/layouts/candidate-navigation'
-import { logoutCandidate } from '@/features/auth/api/auth'
+import { CabinetNavigation } from '@/app/layouts/cabinet-navigation'
+import { logoutAccount } from '@/features/auth/api/auth'
 import { candidateProfileQueryKey, getCandidateProfile } from '@/features/candidate-profile/api/profile'
 import { profileDraft, useProfileDraft } from '@/features/candidate-profile/model/profile-draft'
 import { isProfileSectionId } from '@/features/candidate-profile/model/profile-sections'
@@ -39,7 +40,7 @@ export function CandidateLayout() {
     enabled: session.status === 'authenticated' && session.user?.role === 'candidate',
   })
   const logout = useMutation({
-    mutationFn: logoutCandidate,
+    mutationFn: logoutAccount,
     onSettled: () => {
       queryClient.clear()
       void navigate({ to: '/login', replace: true })
@@ -98,6 +99,7 @@ export function CandidateLayout() {
             onLogout={startLogout}
           />
         </div>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6"><CabinetNavigation /></div>
       </header>
 
       <main className={`mx-auto max-w-6xl px-4 sm:px-6 ${mobileProfileSection ? 'py-0 lg:py-10' : 'py-6 sm:py-10'}`}>

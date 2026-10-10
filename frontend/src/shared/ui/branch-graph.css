@@ -1,0 +1,69 @@
+.branch-graph {
+  --graph-blue: var(--primary);
+  --graph-navy: color-mix(in oklab, var(--primary) 68%, var(--card));
+  --graph-red: var(--destructive);
+  color: var(--foreground);
+}
+.graph-tone-blue { --graph-tone: var(--graph-blue); }
+.graph-tone-navy { --graph-tone: var(--graph-navy); }
+.graph-tone-red { --graph-tone: var(--graph-red); }
+.branch-graph-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 16px; }
+.branch-graph-legend-item { display: inline-flex; align-items: center; gap: 7px; color: var(--muted-foreground); font-size: 11px; }
+.branch-graph-legend-item > span { width: 6px; height: 6px; border-radius: 50%; background: var(--graph-tone); }
+.branch-graph-list { margin: 0; padding: 0; list-style: none; }
+.branch-graph-row { position: relative; }
+.branch-graph-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 16px 24px 16px calc(var(--graph-rail) + 18px);
+  text-align: left;
+  cursor: pointer;
+  isolation: isolate;
+  outline: none;
+}
+/* Straight left spine and rounded right lobes repeat the Benefit mark and chat bubbles. */
+.branch-graph-node::before {
+  content: '';
+  position: absolute;
+  inset: 4px 0 4px var(--graph-rail);
+  z-index: -1;
+  border: 1px solid var(--border);
+  border-radius: 7px 30px 30px 7px;
+  background: var(--card);
+  transition: background .15s, border-color .15s;
+}
+.branch-graph-node:hover::before { background: var(--muted); }
+.branch-graph-node[data-state='open']::before { border-color: color-mix(in oklab, var(--primary) 28%, var(--border)); background: color-mix(in oklab, var(--primary) 6%, var(--card)); }
+.branch-graph-node:focus-visible::before { outline: 3px solid color-mix(in oklab, var(--ring) 45%, transparent); outline-offset: 2px; }
+.branch-graph-rail { position: absolute; inset: 0 auto 0 0; width: var(--graph-rail); pointer-events: none; }
+.branch-graph-rail svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.branch-graph-trunk { fill: none; stroke: var(--graph-blue); stroke-width: 2; opacity: .2; }
+.branch-graph-edge { fill: none; stroke: var(--graph-tone); stroke-width: 2; }
+.branch-graph-dot { position: absolute; top: 50%; display: grid; place-items: center; width: 12px; height: 12px; border: 2px solid var(--graph-tone); border-radius: 50%; background: var(--card); transform: translate(-50%, -50%); }
+.branch-graph-dot > span { width: 4px; height: 4px; border-radius: 50%; background: var(--graph-tone); }
+.branch-graph-node-number { flex-shrink: 0; color: var(--muted-foreground); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
+.branch-graph-node-title { flex: 1; min-width: 0; font-size: 14px; line-height: 1.5; font-weight: 500; overflow-wrap: anywhere; }
+.branch-graph-chevron { flex-shrink: 0; color: var(--muted-foreground); transition: transform .15s; }
+.branch-graph-node[data-state='open'] .branch-graph-chevron { transform: rotate(180deg); }
+.branch-graph-expansion { position: relative; padding: 1px 0 8px var(--graph-rail); }
+.branch-graph-expanded-rail, .branch-graph-expanded-trunk { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--graph-tone); transform: translateX(-50%); }
+.branch-graph-expanded-trunk { left: 16px; background: var(--graph-blue); opacity: .2; }
+.branch-graph-description { padding: 16px 24px 18px 18px; border: 1px solid var(--border); border-radius: 7px 30px 30px 7px; background: var(--muted); color: var(--muted-foreground); font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .branch-graph-node { gap: 8px; padding-right: 16px; padding-left: calc(var(--graph-rail) + 12px); }
+  .branch-graph-node-title { font-size: 13px; }
+  .branch-graph-description { padding-inline: 14px 18px; }
+  .branch-graph-legend { gap: 8px 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .branch-graph-node::before, .branch-graph-chevron { transition: none; } }
+@media (forced-colors: active) {
+  .branch-graph-node[data-state='open']::before { border-color: Highlight; }
+  .branch-graph-node:focus-visible::before { outline-color: Highlight; }
+  .branch-graph-edge, .branch-graph-trunk { stroke: CanvasText; opacity: 1; }
+  .branch-graph-dot { border-color: CanvasText; }
+  .branch-graph-expanded-rail, .branch-graph-expanded-trunk { background: CanvasText; opacity: 1; }
+}
