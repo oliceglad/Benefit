@@ -105,11 +105,56 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  deploy:
-    name: Deploy → ${{ vars.DEPLOY_HOST }}
+  # Образы собираются здесь, а не на сервере: сборке фронтенда и дюжины
+  # Python-образов не хватает 1 ГБ памяти сервера.
+  images:
+    name: Images → GHCR
     needs: [backend-lint, backend-tests, frontend]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      prefix: ${{ steps.tag.outputs.prefix }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        name: Имена образов
+        run: |
+          # В имени образа владелец репозитория — только в нижнем регистре.
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "prefix=ghcr.io/${owner}/benefit" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - name: Сборка и публикация
+        env:
+          IMAGE_PREFIX: ${{ steps.tag.outputs.prefix }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+          VITE_LEGAL_OPERATOR_NAME: ${{ vars.VITE_LEGAL_OPERATOR_NAME }}
+          VITE_LEGAL_OPERATOR_ADDRESS: ${{ vars.VITE_LEGAL_OPERATOR_ADDRESS }}
+          VITE_LEGAL_CONTACT_EMAIL: ${{ vars.VITE_LEGAL_CONTACT_EMAIL }}
+        run: |
+          # Только сервисы со своим Dockerfile (у остальных — готовые образы).
+          built=$(docker compose config --format json \
+            | jq -r '.services | to_entries[] | select(.value.build) | .key')
+          docker compose build $built
+          docker compose push $built
+
+  deploy:
+    name: Deploy → ${{ vars.DEPLOY_HOST }}
+    needs: [images]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     environment:
       name: production
       url: http://${{ vars.DEPLOY_HOST }}/
@@ -153,7 +198,15 @@ jobs:
           EOF
 
       - name: Подготовка сервера
-        run: ssh deploy "mkdir -p ${DEPLOY_DIR} && (command -v rsync >/dev/null || (apt-get update -qq && apt-get install -y -qq rsync))"
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ssh deploy "mkdir -p ${DEPLOY_DIR} \
+            && (command -v rsync >/dev/null || (apt-get update -qq && apt-get install -y -qq rsync)) \
+            && (command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sh))"
+          # Доступ к приватным образам GHCR. Токен действует только до конца
+          # этого запуска — дольше серверу он и не нужен.
+          printf '%s' "$GHCR_TOKEN" | ssh deploy "docker login ghcr.io -u ${{ github.actor }} --password-stdin"
 
       - name: Копирование кода
         run: |
@@ -174,13 +227,15 @@ jobs:
             --exclude frontend/dist/ \
             ./ deploy:${DEPLOY_DIR}/
 
-      - name: Сборка и запуск
+      - name: Запуск на сервере
         run: |
           # Деплой идёт на сервере в фоне (setsid + nohup): обрыв SSH во время
-          # долгой сборки его не прерывает. Лог забирается короткими
+          # скачивания образов и запуска его не прерывает. Лог — короткими
           # подключениями, итог — из deploy.status.
           ssh deploy "cd ${DEPLOY_DIR} && rm -f deploy.status deploy.log && \
-            PUBLIC_HOST=${DEPLOY_HOST} setsid nohup bash .github/scripts/deploy.sh --detached \
+            PUBLIC_HOST=${DEPLOY_HOST} IMAGE_PREFIX=${{ needs.images.outputs.prefix }} \
+            IMAGE_TAG=${{ needs.images.outputs.tag }} \
+            setsid nohup bash .github/scripts/deploy.sh --detached \
             </dev/null >/dev/null 2>&1 &"
           offset=0
           deadline=$((SECONDS + 45 * 60))

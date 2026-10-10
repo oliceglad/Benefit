@@ -2,7 +2,12 @@
 # Деплой Benefit (фронтенд + бэкенд) на сервер. Запускается на сервере из
 # каталога проекта: CI копирует код через rsync и вызывает скрипт по SSH.
 #
-#   PUBLIC_HOST=<адрес сервера> bash .github/scripts/deploy.sh [--detached]
+#   PUBLIC_HOST=<адрес сервера> [IMAGE_PREFIX=… IMAGE_TAG=…] \
+#       bash .github/scripts/deploy.sh [--detached]
+#
+# IMAGE_PREFIX/IMAGE_TAG: готовые образы из реестра (их собирает CI) — сервер
+# только скачивает их. Без них образы собираются на сервере (медленно и
+# требует памяти).
 #
 # --detached: вывод — в deploy.log, код выхода — в deploy.status. CI запускает
 # так, чтобы обрыв SSH во время долгой сборки не убивал деплой, и забирает
@@ -93,18 +98,50 @@ if [ ! -f .env ]; then
     set_var KEYCLOAK_ADMIN_PASSWORD "$(secret)"
 fi
 
+# Настройки сервера с 1 ГБ памяти (применяются один раз, если в .env ещё
+# нет SERVER_SKIP_SERVICES). Keycloak занимает ~250 МБ, а снаружи всё равно
+# недоступен: его адрес — localhost:8080 на сервере.
+if ! grep -q '^SERVER_SKIP_SERVICES=' .env; then
+    set_var SERVER_SKIP_SERVICES keycloak
+    set_var KEYCLOAK_ENABLED false
+fi
+skip=" $(grep -E '^SERVER_SKIP_SERVICES=' .env | cut -d= -f2 | tr ',' ' ') "
+services=""
+for service in $(docker compose config --services); do
+    case "$skip" in *" $service "*) ;; *) services="$services $service" ;; esac
+done
+
+if [ -n "${IMAGE_TAG:-}" ]; then
+    # Тег записывается в .env: ручные docker compose … на сервере
+    # используют те же образы.
+    set_var IMAGE_PREFIX "${IMAGE_PREFIX:?укажите IMAGE_PREFIX вместе с IMAGE_TAG}"
+    set_var IMAGE_TAG "$IMAGE_TAG"
+fi
+
 # Пакеты тестов в git не хранятся (кладутся на сервер вручную), но каталог
 # монтируется в assessment-service и должен существовать.
 mkdir -p backend/assessment-service/content
 
 # --- Запуск -----------------------------------------------------------------
-log "Сборка и запуск (ревизия $(cat REVISION 2>/dev/null || echo '?'))"
-# Образы собираются по одному: параллельная сборка всех сразу
-# перегружает небольшой сервер. Общие слои берутся из кэша.
-for service in $(docker compose config --services); do
-    docker compose build "$service"
+log "Запуск ревизии $(cat REVISION 2>/dev/null || echo '?')"
+if grep -q '^IMAGE_TAG=' .env; then
+    log "Скачиваю образы ($(grep -E '^IMAGE_TAG=' .env | cut -d= -f2))"
+    # shellcheck disable=SC2086
+    docker compose pull --quiet $services
+    build_flag=--no-build
+else
+    log "Собираю образы на сервере"
+    # По одному: параллельная сборка перегружает небольшой сервер.
+    for service in $services; do
+        docker compose build "$service"
+    done
+    build_flag=
+fi
+# shellcheck disable=SC2086
+docker compose up -d $build_flag --remove-orphans $services
+for service in $skip; do
+    docker compose rm -sf "$service" >/dev/null 2>&1 || true
 done
-docker compose up -d --remove-orphans
 
 log "Жду, пока контейнеры станут healthy (до ${HEALTH_TIMEOUT} с)"
 deadline=$((SECONDS + HEALTH_TIMEOUT))
@@ -133,6 +170,6 @@ status=$(curl -fsS "$base/api/v1/status")
 echo "$status"
 echo "$status" | grep -q '^{"status":"ok"' || { echo "Не все сервисы в статусе ok"; exit 1; }
 
-# Старые образы после пересборки занимают место на диске.
-docker image prune -f >/dev/null
+# Старые образы (прошлые ревизии) занимают место на диске.
+docker image prune -af >/dev/null
 log "Готово: http://${PUBLIC_HOST}/ (Swagger: http://${PUBLIC_HOST}/docs)"

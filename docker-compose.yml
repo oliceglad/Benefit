@@ -48,6 +48,9 @@ services:
   # --- API-шлюз: единственная точка входа снаружи -------------------------
   gateway:
     <<: *service-defaults
+    # Имена образов: локально — benefit-<сервис>:latest (как по умолчанию у
+    # compose); на сервере — готовые образы из GHCR, собранные в CI.
+    image: ${IMAGE_PREFIX:-benefit}-gateway:${IMAGE_TAG:-latest}
     build:
       context: ./backend/gateway
     ports:
@@ -91,6 +94,7 @@ services:
 
   core:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-core:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: core/Dockerfile
@@ -121,6 +125,7 @@ services:
 
   auth-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-auth-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: auth-service/Dockerfile
@@ -185,6 +190,7 @@ services:
 
   candidate-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-candidate-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: candidate-service/Dockerfile
@@ -221,6 +227,7 @@ services:
 
   assessment-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-assessment-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: assessment-service/Dockerfile
@@ -260,6 +267,7 @@ services:
 
   applications-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-applications-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: applications-service/Dockerfile
@@ -295,6 +303,7 @@ services:
 
   employer-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-employer-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: employer-service/Dockerfile
@@ -328,6 +337,7 @@ services:
 
   matching-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-matching-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: matching-service/Dockerfile
@@ -361,6 +371,7 @@ services:
 
   chat-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-chat-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: chat-service/Dockerfile
@@ -399,6 +410,7 @@ services:
 
   notification-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-notification-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: notification-service/Dockerfile
@@ -421,6 +433,7 @@ services:
 
   mail-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-mail-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: mail-service/Dockerfile
@@ -448,6 +461,7 @@ services:
   # --- Внешние провайдеры --------------------------------------------------
   fsp-id-mock:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-fsp-id-mock:${IMAGE_TAG:-latest}
     build:
       context: ./backend/fsp-id-mock
     environment:
@@ -549,6 +563,7 @@ services:
   # --- Фронтенд: SPA + прокси API на шлюз (тот же origin) -----------------
   frontend:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-frontend:${IMAGE_TAG:-latest}
     build:
       context: ./frontend
       args:
