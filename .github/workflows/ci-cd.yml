@@ -129,8 +129,14 @@ jobs:
           test -n "$DEPLOY_KNOWN_HOSTS" || { echo "Не задана переменная DEPLOY_KNOWN_HOSTS"; exit 1; }
           test -n "$DEPLOY_SSH_KEY" || { echo "Не задан секрет DEPLOY_SSH_KEY"; exit 1; }
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          # Windows-переводы строк из буфера обмена ломают ключ.
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
+          # Секрет должен быть приватным ключом без пароля. Отпечаток (публичный)
+          # сверяется с ssh-keygen -lf /root/.ssh/authorized_keys на сервере.
+          ssh-keygen -y -P '' -f ~/.ssh/deploy > ~/.ssh/deploy.pub || {
+            echo "DEPLOY_SSH_KEY — не приватный ключ или ключ с паролем"; exit 1; }
+          echo "Ключ деплоя: $(ssh-keygen -lf ~/.ssh/deploy.pub)"
           # Ключи сервера зафиксированы: подмена сервера оборвёт деплой.
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           cat > ~/.ssh/config <<EOF
@@ -139,6 +145,9 @@ jobs:
             User root
             IdentityFile ~/.ssh/deploy
             IdentitiesOnly yes
+            # Только ключ: без попыток входа по паролю.
+            BatchMode yes
+            PreferredAuthentications publickey
             ServerAliveInterval 30
           EOF
 
