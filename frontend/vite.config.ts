@@ -20,6 +20,7 @@ export default defineConfig({
       '/api': {
         target: process.env.BENEFIT_GATEWAY_URL ?? 'http://127.0.0.1:8000',
         changeOrigin: true,
+        ws: true,
       },
       '/.well-known': {
         target: process.env.BENEFIT_GATEWAY_URL ?? 'http://127.0.0.1:8000',

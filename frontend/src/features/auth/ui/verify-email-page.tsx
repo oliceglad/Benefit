@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Controller, useForm } from 'react-hook-form'
 
-import { resendVerificationCode, verifyCandidateEmail } from '@/features/auth/api/auth'
+import { resendVerificationCode, verifyAccountEmail } from '@/features/auth/api/auth'
 import { useCountdown } from '@/features/auth/model/use-countdown'
 import {
   verificationFlow,
@@ -58,10 +58,10 @@ export function VerifyEmailPage() {
     defaultValues: { email: flow.email, code: '' },
   })
   const verification = useMutation({
-    mutationFn: (values: VerifyEmailValues) => verifyCandidateEmail(values.email, values.code),
+    mutationFn: (values: VerifyEmailValues) => verifyAccountEmail(values.email, values.code),
     onSuccess: () => {
       verificationFlow.clear()
-      void navigate({ to: '/profile', search: { section: 'personal' }, replace: true })
+      void navigate({ to: '/', replace: true })
     },
   })
   const resend = useMutation({

@@ -2,9 +2,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { AlertCircle } from 'lucide-react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 
-import { registerCandidate } from '@/features/auth/api/auth'
+import { registerAccount } from '@/features/auth/api/auth'
 import { registerSchema, type RegisterValues } from '@/features/auth/model/register-schema'
 import { verificationFlow } from '@/features/auth/model/verification-flow'
 import { AuthPageLayout } from '@/features/auth/ui/auth-page-layout'
@@ -31,13 +32,14 @@ function registrationErrorMessage(error: unknown): string {
 }
 
 export function RegisterPage() {
+  const [role, setRole] = useState<'candidate' | 'employer'>('candidate')
   const navigate = useNavigate()
   const form = useForm<RegisterValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { fullName: '', email: '', password: '' },
   })
   const registration = useMutation({
-    mutationFn: registerCandidate,
+    mutationFn: (values: RegisterValues) => registerAccount({ ...values, role }),
     onSuccess: (response) => {
       verificationFlow.start(
         response.email,
@@ -74,7 +76,7 @@ export function RegisterPage() {
       <Card>
         <CardHeader>
           <CardTitle>Создание аккаунта</CardTitle>
-          <CardDescription>Зарегистрируйтесь как кандидат.</CardDescription>
+          <CardDescription>Выберите, как вы будете использовать Benefit.</CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -84,6 +86,13 @@ export function RegisterPage() {
               void form.handleSubmit((values) => registration.mutate(values))(event)
             }
           >
+            <fieldset disabled={registration.isPending} className="space-y-2">
+              <legend className="mb-2 text-sm font-medium">Тип аккаунта</legend>
+              <div className="grid grid-cols-2 gap-2">
+                <Button type="button" variant={role === 'candidate' ? 'default' : 'outline'} aria-pressed={role === 'candidate'} onClick={() => setRole('candidate')}>Кандидат</Button>
+                <Button type="button" variant={role === 'employer' ? 'default' : 'outline'} aria-pressed={role === 'employer'} onClick={() => setRole('employer')}>Работодатель</Button>
+              </div>
+            </fieldset>
             {registration.isError ? (
               <Alert variant="destructive">
                 <AlertCircle className="size-4" aria-hidden="true" />

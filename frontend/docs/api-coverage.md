@@ -1,10 +1,10 @@
-# API coverage — candidate auth and profile
+# API coverage — account, candidate profile and vacancies
 
 Backend revision: `388a90a221c6c8339f8513cdf1ce3227a4970c53`.
 
 | Scenario | Gateway operation | Auth | Status |
 |---|---|---|---|
-| Candidate registration | `POST /api/v1/auth/register` | Public | Implemented; always sends `role=candidate` |
+| Account registration | `POST /api/v1/auth/register` | Public | Implemented; candidate/employer role picker |
 | Email verification | `POST /api/v1/auth/verify-email` | Public | Implemented; requests HttpOnly-cookie delivery |
 | Resend verification code | `POST /api/v1/auth/resend-code` | Public | Implemented; cooldown and `Retry-After` enforced |
 | Login | `POST /api/v1/auth/login` | Public | Implemented |
@@ -41,7 +41,7 @@ matching and chat are explicitly outside this slice.
 ## Registration contract confirmed in backend
 
 - Registration accepts `email`, `password`, `role` and optional `full_name`.
-  The frontend fixes `role` to `candidate`; no role picker is exposed.
+  The frontend exposes the existing `candidate` and `employer` roles. The server remains authoritative.
 - Password length is 8–128 characters and it must contain a letter and a
   digit. The current backend configuration accepts `.ru`, `.su`, `.рф` and
   explicitly allowlisted domains.
@@ -79,12 +79,11 @@ Omitted fields are preserved; nullable scalar fields are cleared by `null`.
 Every supplied array replaces the stored array in full. Detailed field and
 dictionary mapping is maintained in `profile-sections.md`.
 
-The live local gateway on 2026-10-09 returned both required consent records
-with versions and relative URLs (`/legal/personal-data` and
-`/legal/publication`), but both document routes returned 404. The frontend also
-requires an absolute HTTP(S) URL and therefore blocks consent acceptance and
-publication instead of presenting an unreachable document. This remains a
-backend/configuration limitation, not a client-side error.
+The initial 2026-10-09 audit found unavailable relative consent-document routes.
+The current frontend resolves server-provided same-origin paths and provides
+the `/legal/personal-data` and `/legal/publication` pages. Both documents and
+manual consent acceptance were checked during the prior local candidate run.
+The server still supplies the current document version and URL.
 
 ## Technical assessment contract
 
@@ -123,9 +122,40 @@ not edited.
 
 ## Previously identified blockers
 
-- Consent document URLs now have relative defaults in backend configuration,
-  and the live API returns them. The corresponding gateway routes return 404
-  and the values are not absolute document URLs, so the blocker remains open.
+- The relative consent-document route blocker was resolved by the frontend
+  routes described above; it is retained here as historical context.
 - The dictionaries response still has no `industries` collection. The profile
   accepts an `industry` enum, but the frontend cannot offer a correctly labelled
   selector from the documented dictionary contract. This blocker remains open.
+
+## Vacancies and pipeline constructor — 2026-10-10
+
+The employer and application snapshots were added for the existing contracts
+at repository revision `edc285a4bbf6e71d6df24b703230a7445280ab3c`.
+
+| Scenario | Gateway operation | Auth | Status |
+|---|---|---|---|
+| Vacancy catalog and filters | `GET /api/v1/vacancies` | Account cookie | Implemented |
+| Published vacancy | `GET /api/v1/vacancies/{id}` | Account cookie | Implemented |
+| Own vacancies | `GET /api/v1/employers/vacancies` | `employer` | Implemented |
+| Own vacancy | `GET /api/v1/employers/vacancies/{id}` | `employer` | Implemented |
+| Create draft | `POST /api/v1/employers/vacancies` | `employer` | Implemented |
+| Edit full vacancy | `PUT /api/v1/employers/vacancies/{id}` | `employer` | Implemented; existing need link preserved |
+| Publish / unpublish / close | `PATCH /api/v1/employers/vacancies/{id}` | `employer` | Implemented; explicit confirmation |
+| First-vacancy company setup | `GET/PUT /api/v1/employers/company` | `employer` | Implemented; only offered for missing company |
+| Own applications | `GET /api/v1/applications` | `candidate` | Implemented |
+| Apply to vacancy | `POST /api/v1/applications` | `candidate` | Implemented; explicit action with contact disclosure |
+| Pipeline persistence | Contract pending | `employer` | Local browser drafts only; no pipeline API called |
+
+The pipeline stage catalog is a user-requested proposal. It has no automatic
+mapping to application statuses. Scope, routes, backend handoff and verification
+limits are recorded in [vacancies-and-pipelines.md](vacancies-and-pipelines.md).
+
+## Chat — 2026-10-10
+
+Conversation list/detail, paginated history, text sending, read receipts and
+attachment upload/download use the existing `/api/v1/chat` public operations.
+`/api/v1/chat/ws` delivers updates with REST polling during reconnects. Both
+account roles use the same feature, with server-authorized participant access.
+The saved snapshot, error behavior and missing participant display names are
+documented in [chat.md](chat.md). Task execution and assessment flows are unchanged.

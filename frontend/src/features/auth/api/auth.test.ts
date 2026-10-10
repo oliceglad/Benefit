@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import {
   authTestApi,
-  loginCandidate,
-  registerCandidate,
-  restoreCandidateSession,
-  verifyCandidateEmail,
+  loginAccount,
+  registerAccount,
+  restoreAccountSession,
+  verifyAccountEmail,
 } from '@/features/auth/api/auth'
 import { getCandidateProfile } from '@/features/candidate-profile/api/profile'
 import { ApiError } from '@/shared/api/transport/api-error'
@@ -38,7 +38,7 @@ afterEach(() => {
   session.reset()
 })
 
-describe('loginCandidate', () => {
+describe('loginAccount', () => {
   it('requests an HttpOnly-cookie session and loads the current candidate', async () => {
     server.use(
       http.post('*/api/v1/auth/login', ({ request }) => {
@@ -51,7 +51,7 @@ describe('loginCandidate', () => {
       }),
     )
 
-    await loginCandidate({ email: 'candidate@example.ru', password: 'Password123!' })
+    await loginAccount({ email: 'candidate@example.ru', password: 'Password123!' })
 
     expect(session.getSnapshot()).toMatchObject({
       status: 'authenticated',
@@ -71,7 +71,7 @@ describe('loginCandidate', () => {
       ),
     )
 
-    const error = await loginCandidate({ email: 'candidate@example.ru', password: 'bad' }).catch(
+    const error = await loginAccount({ email: 'candidate@example.ru', password: 'bad' }).catch(
       (caught: unknown) => caught,
     )
 
@@ -80,7 +80,7 @@ describe('loginCandidate', () => {
     expect(session.getSnapshot()).toEqual({ status: 'anonymous', user: null })
   })
 
-  it('rejects a valid account without the candidate role and clears its cookie session', async () => {
+  it('rejects an unsupported account role and clears its cookie session', async () => {
     let logoutCalled = false
     server.use(
       http.post('*/api/v1/auth/login', () => HttpResponse.json(cookieTokens)),
@@ -88,7 +88,7 @@ describe('loginCandidate', () => {
         ...candidateResponse,
         id: 'employer-id',
         email: 'employer@example.ru',
-        role: 'employer',
+        role: 'admin',
       })),
       http.post('*/api/v1/auth/logout', () => {
         logoutCalled = true
@@ -96,11 +96,11 @@ describe('loginCandidate', () => {
       }),
     )
 
-    const error = await loginCandidate({ email: 'employer@example.ru', password: 'Password123!' }).catch(
+    const error = await loginAccount({ email: 'employer@example.ru', password: 'Password123!' }).catch(
       (caught: unknown) => caught,
     )
 
-    expect(error).toMatchObject({ status: 403, code: 'candidate_access_required' })
+    expect(error).toMatchObject({ status: 403, code: 'unsupported_account_role' })
     expect(logoutCalled).toBe(true)
     expect(session.getSnapshot()).toEqual({ status: 'anonymous', user: null })
   })
@@ -127,7 +127,7 @@ describe('cookie session restoration', () => {
       }),
     )
 
-    await expect(restoreCandidateSession()).resolves.toBe(true)
+    await expect(restoreAccountSession()).resolves.toBe(true)
 
     expect(refreshCount).toBe(1)
     expect(session.getSnapshot()).toMatchObject({
@@ -179,12 +179,12 @@ describe('candidate registration', () => {
       }),
     )
 
-    const registration = await registerCandidate({
+    const registration = await registerAccount({
       email: 'new-candidate@example.ru',
       password: 'Password123!',
       fullName: 'Анна Иванова',
     })
-    await verifyCandidateEmail(registration.email, '012345')
+    await verifyAccountEmail(registration.email, '012345')
     const profile = await getCandidateProfile()
 
     expect(profile.user_id).toBe('new-candidate-id')
@@ -205,7 +205,7 @@ describe('candidate registration', () => {
       }, { status: 422 })),
     )
 
-    const error = await registerCandidate({
+    const error = await registerAccount({
       email: 'candidate@example.ru',
       password: '12345678',
     }).catch((caught: unknown) => caught)

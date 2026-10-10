@@ -13,13 +13,13 @@ export function AuthPageLayout({ children }: { children: ReactNode }) {
         <div className="flex min-h-0 items-center py-8">
           <div className="max-w-xl space-y-5">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
-              Кабинет кандидата
+              Работа и команды
             </p>
             <h1 className="text-4xl font-semibold leading-tight xl:text-5xl">
-              Профиль, который работает на вашу карьеру
+              Найдите свою команду
             </h1>
             <p className="max-w-lg text-lg leading-8 text-white/78">
-              Управляйте контактами и данными профиля в одном пространстве.
+              Вакансии, профессиональные навыки и знакомство с будущей командой в Benefit.
             </p>
           </div>
         </div>

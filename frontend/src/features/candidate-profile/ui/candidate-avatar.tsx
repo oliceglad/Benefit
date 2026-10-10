@@ -1,19 +1,25 @@
 import { useQuery } from '@tanstack/react-query'
 import { UserRound } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 
 import { candidatePhotoQueryKey, getCandidatePhoto } from '@/features/candidate-profile/api/files'
 import { cn } from '@/shared/lib/cn'
 import { createPrivateObjectUrl, revokePrivateObjectUrl } from '@/shared/lib/private-object-url'
 
 function usePrivateImageUrl(blob: Blob | undefined): string | null {
-  const url = useMemo(() => blob ? createPrivateObjectUrl(blob) : null, [blob])
+  const [image, setImage] = useState<{ blob?: Blob; url: string | null }>({ url: null })
 
-  useEffect(() => () => {
-    if (url) revokePrivateObjectUrl(url)
-  }, [url])
+  useEffect(() => {
+    const url = blob ? createPrivateObjectUrl(blob) : null
+    // The browser resource is created and released by the same effect, including StrictMode remounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImage({ blob, url })
+    return () => {
+      if (url) revokePrivateObjectUrl(url)
+    }
+  }, [blob])
 
-  return url
+  return image.blob === blob ? image.url : null
 }
 
 function initials(firstName: string | null, lastName: string | null): string {

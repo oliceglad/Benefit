@@ -81,3 +81,15 @@ sources:
     license: Apache-2.0
     status: evaluated_not_incorporated
     reason: Stage 1 has no chart or analytics requirement.
+  - id: zite-applicant-tracking
+    repository: https://github.com/zite/applicant-tracking
+    commit: efde414cb971e075b27325fafb05577bd8f1f9f1
+    license: MIT
+    license_file: LICENSE
+    components:
+      - source_path: apps/applicant-tracking/src/components/JobFormDialog.tsx
+        local_path: src/features/vacancies/ui/vacancy-editor-page.tsx
+        changes: Form composition reference; rewritten with Benefit React Hook Form/Zod, complete vacancy detail, Orval API, Russian copy and separate publication. No Zite runtime or demo fields copied.
+      - source_path: apps/applicant-tracking/src/pages/JobsPage.tsx
+        local_path: src/features/vacancies/ui/employer-vacancy-list.tsx
+        changes: Compact job rows, visibility/status and edit action composition; adapted to Benefit fields, real statuses and TanStack Router. No synthetic candidate counts or donor branding.
