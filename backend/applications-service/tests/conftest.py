@@ -89,7 +89,7 @@ class FakeEmployers:
             "owner_id": str(employer_id),
             "status": status,
             "title": "Middle Python Developer",
-            "company": {"name": "ООО Вакансия"},
+            "company": {"id": str(uuid.uuid4()), "name": "ООО Вакансия"},
             "salary_from": 250000,
             "salary_to": 350000,
             "currency": "RUB",
@@ -105,7 +105,7 @@ class FakeEmployers:
         return self.vacancies.get(vacancy_id)
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def employers() -> Iterator[FakeEmployers]:
     from app.services.employers import get_employer_directory
 

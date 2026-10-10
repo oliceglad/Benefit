@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from benefit_common.settings import get_common_settings
 from benefit_common.testing import TestUser
 from httpx import AsyncClient
 from sqlalchemy import update
@@ -371,3 +372,34 @@ async def test_validation_and_dictionaries(
 
     dictionaries = (await client.get(f"{API}/dictionaries")).json()
     assert {"id": "offer", "title": "Оффер"} in dictionaries["stages"]
+
+
+async def test_account_deletion_removes_hiring_data(
+    client: AsyncClient, candidates: Any, employers: FakeEmployers
+) -> None:
+    employer, candidate, process = await start_by_application(
+        client, candidates, employers
+    )
+    await add_member(client, employer, "Анна Рекрутер")
+    await act(
+        client,
+        employer,
+        f"/processes/{process['id']}/interviews",
+        {"scheduled_at": soon()},
+    )
+    internal = {"X-Internal-Token": get_common_settings().internal_api_token}
+
+    for _ in range(2):  # идемпотентно
+        response = await client.delete(
+            f"/internal/v1/users/{candidate.id}", headers=internal
+        )
+        assert response.status_code == 204
+
+    assert (await client.get(f"{API}/processes", headers=employer.headers)).json() == []
+    applications = await client.get(
+        "/api/v1/applications/received", headers=employer.headers
+    )
+    assert applications.json() == []
+
+    await client.delete(f"/internal/v1/users/{employer.id}", headers=internal)
+    assert (await client.get(f"{API}/team", headers=employer.headers)).json() == []

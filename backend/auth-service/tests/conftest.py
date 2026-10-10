@@ -15,6 +15,7 @@ os.environ["POSTGRES_DB"] = os.environ.get("POSTGRES_DB", "auth") + "_test"
 os.environ["JWT_PRIVATE_KEY_PATH"] = os.path.join(tempfile.mkdtemp(), "jwt_private.pem")
 os.environ["FSP_ID_ENABLED"] = "false"
 os.environ["KEYCLOAK_ENABLED"] = "false"
+os.environ["OUTBOX_RELAY_ENABLED"] = "false"
 
 import asyncpg  # noqa: E402
 import pytest  # noqa: E402
@@ -30,17 +31,25 @@ from app.services.mail_client import get_mail_client  # noqa: E402
 
 @dataclass
 class FakeMailClient:
+    # Последний код, отправленный на адрес, и его назначение.
     codes: dict[str, str] = field(default_factory=dict)
+    purposes: dict[str, str] = field(default_factory=dict)
+    # Информационные письма: (адрес, тема, текст).
+    notifications: list[tuple[str, str, str]] = field(default_factory=list)
     fail: bool = False
 
     async def send_verification_code(
-        self, *, to: str, code: str, ttl_minutes: int
+        self, *, to: str, code: str, ttl_minutes: int, purpose: str = "verify_email"
     ) -> None:
         from app.services.mail_client import MailDeliveryError
 
         if self.fail:
             raise MailDeliveryError("smtp down")
         self.codes[to] = code
+        self.purposes[to] = purpose
+
+    async def send_notification(self, *, to: str, subject: str, body: str) -> None:
+        self.notifications.append((to, subject, body))
 
 
 async def _ensure_database() -> None:

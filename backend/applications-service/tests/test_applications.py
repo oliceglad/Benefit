@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 from benefit_common.testing import TestUser
@@ -145,7 +146,7 @@ async def test_invitation_uses_company_profile_and_vacancy(
     )
     assert response.json()["error"]["code"] == "company_required"
 
-    employers.companies[employer.id] = {"name": "ООО Профиль"}
+    employers.companies[employer.id] = {"id": str(uuid.uuid4()), "name": "ООО Профиль"}
     response = await client.post(
         url,
         json={

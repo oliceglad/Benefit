@@ -58,3 +58,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     @property
     def is_email_verified(self) -> bool:
         return self.email_verified_at is not None
+
+    @property
+    def has_password(self) -> bool:
+        """``False`` — вход только через ФСП ID / Keycloak."""
+        return self.password_hash is not None

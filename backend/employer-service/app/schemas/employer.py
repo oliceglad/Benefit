@@ -2,8 +2,8 @@
 
 import re
 import uuid
-from datetime import datetime
-from typing import Annotated, Any, Self
+from datetime import date, datetime
+from typing import Annotated, Any, Literal, Self
 
 from benefit_common.dictionaries import (
     EmploymentType,
@@ -26,7 +26,13 @@ from pydantic import (
     model_validator,
 )
 
-from app.models import CompanySize, FeedbackVerdict, NeedStatus, VacancyStatus
+from app.models import (
+    CompanySize,
+    FeedbackVerdict,
+    NeedStatus,
+    VacancyStatus,
+    VerificationStatus,
+)
 
 
 def _str(max_length: int, min_length: int = 1) -> Any:
@@ -132,13 +138,71 @@ class CompanyIn(BaseModel):
         return _unique_skills(value)
 
 
+class RegistryInfo(BaseModel):
+    """Сведения из ЕГРЮЛ/ЕГРИП (открытые данные ФНС)."""
+
+    kind: Literal["legal", "individual"]
+    full_name: str
+    short_name: str | None
+    ogrn: str | None
+    kpp: str | None
+    registered_at: date | None
+    region: str | None
+    director: str | None
+    terminated_at: date | None
+
+
+class VerificationCheck(BaseModel):
+    code: str
+    # null — проверить не удалось (сайт или источник не ответил).
+    passed: bool | None
+    message: str
+
+
+class PublicVerification(BaseModel):
+    """Статус проверки для кандидатов: значок «Проверенный работодатель»."""
+
+    status: VerificationStatus
+    title: str
+    is_verified: bool
+    verified_at: datetime | None
+    registry: RegistryInfo | None
+
+
+class CompanyVerification(PublicVerification):
+    """Для владельца: какие проверки пройдены и что сделать дальше."""
+
+    verified_by: Literal["auto", "moderator"] | None
+    note: str | None
+    checked_at: datetime | None
+    checks: list[VerificationCheck]
+
+
 class CompanyResponse(CompanyIn):
+    """Профиль компании для владельца."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     owner_id: uuid.UUID
+    verification: CompanyVerification
     created_at: datetime
     updated_at: datetime
+
+
+class PublicCompanyResponse(CompanyResponse):
+    """Профиль компании для кандидатов: без деталей проверок."""
+
+    verification: PublicVerification  # type: ignore[assignment]
+
+
+class VerificationDecision(BaseModel):
+    """Решение модератора."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal["verified", "rejected"]
+    note: _str(1000) | None = None
 
 
 # --- Потребность ----------------------------------------------------------------
@@ -225,6 +289,14 @@ class CompanyBrief(BaseModel):
     industry: Industry
     city: str | None
     website: str | None
+    # Значок «Проверенный работодатель» (статус выставляет только сервер).
+    verification_status: VerificationStatus
+    is_verified: bool = False
+
+    @model_validator(mode="after")
+    def _is_verified(self) -> "CompanyBrief":
+        self.is_verified = self.verification_status == VerificationStatus.VERIFIED
+        return self
 
 
 class VacancyResponse(VacancyIn):

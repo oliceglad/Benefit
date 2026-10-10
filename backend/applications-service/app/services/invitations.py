@@ -4,10 +4,16 @@
 отправленные им. Чужие приглашения неотличимы от несуществующих (404).
 """
 
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from benefit_common.errors import AppError, ConflictError, NotFoundError
+from benefit_common.errors import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    ServiceUnavailableError,
+)
 from benefit_common.outbox import enqueue
 from benefit_common.security import Principal
 from sqlalchemy import func, select
@@ -26,6 +32,8 @@ from app.services.candidates import CandidateDirectory
 from app.services.delivery import CHAT_SYNC, CONTACT_GRANT, NOTIFICATION
 from app.services.employers import EmployerDirectory
 from app.services.hiring import HiringService
+
+logger = logging.getLogger(__name__)
 
 CURRENCY_SIGNS = {"RUB": "₽", "USD": "$", "EUR": "€"}
 
@@ -52,6 +60,7 @@ def to_response(invitation: Invitation) -> InvitationResponse:
         status=invitation.status,
         candidate_id=invitation.candidate_id,
         employer_id=invitation.employer_id,
+        company_id=invitation.company_id,
         vacancy=Vacancy(
             vacancy_id=invitation.vacancy_id,
             title=invitation.vacancy_title,
@@ -101,6 +110,7 @@ class InvitationService:
                 status_code=429,
             )
         offer = await self._resolve_offer(employer, data.vacancy)
+        company_id = await self._company_id(employer)
         duplicate = await self.session.scalar(
             select(Invitation.id).where(
                 Invitation.employer_id == employer.id,
@@ -121,6 +131,7 @@ class InvitationService:
             vacancy_id=offer.vacancy_id,
             vacancy_title=offer.title,
             company_name=offer.company_name,
+            company_id=company_id,
             salary_from=offer.salary_from,
             salary_to=offer.salary_to,
             currency=offer.currency,
@@ -155,6 +166,16 @@ class InvitationService:
         await self.session.commit()
         await self.session.refresh(invitation)
         return invitation
+
+    async def _company_id(self, employer: Principal) -> uuid.UUID | None:
+        """Профиль компании для значка проверки. Сбой employer-service не
+        мешает пригласить кандидата: приглашение уйдёт без ссылки."""
+        try:
+            company = await self.employers.company(employer.id)
+        except ServiceUnavailableError:
+            logger.warning("Employer service unavailable, invitation without company")
+            return None
+        return uuid.UUID(company["id"]) if company else None
 
     async def _resolve_offer(self, employer: Principal, offer: Offer) -> Vacancy:
         """Дополняет предложение данными вакансии и профиля компании."""
@@ -248,6 +269,7 @@ class InvitationService:
                 vacancy_id=invitation.vacancy_id,
                 vacancy_title=invitation.vacancy_title,
                 company_name=invitation.company_name,
+                company_id=invitation.company_id,
                 actor_id=candidate.id,
             )
             # Принятие приглашения открывает работодателю контакты кандидата.

@@ -15,6 +15,7 @@ from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.core.jwt import decode_access_token
 from app.db.session import get_session
 from app.models.user import User, UserRole
+from app.services.account import AccountService
 from app.services.auth import AuthService
 from app.services.mail_client import MailClient, get_mail_client
 from app.services.oauth import OAuthService
@@ -33,6 +34,13 @@ def get_auth_service(
     return AuthService(session, mail)
 
 
+def get_account_service(
+    session: SessionDep,
+    mail: Annotated[MailClient, Depends(get_mail_client)],
+) -> AccountService:
+    return AccountService(session, mail)
+
+
 def get_oauth_service(
     session: SessionDep,
     registry: Annotated[ProviderRegistry, Depends(get_provider_registry)],
@@ -45,6 +53,7 @@ def get_token_service(session: SessionDep) -> TokenService:
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+AccountServiceDep = Annotated[AccountService, Depends(get_account_service)]
 OAuthServiceDep = Annotated[OAuthService, Depends(get_oauth_service)]
 TokenServiceDep = Annotated[TokenService, Depends(get_token_service)]
 ProviderRegistryDep = Annotated[ProviderRegistry, Depends(get_provider_registry)]

@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 
 os.environ["APP_ENV"] = "test"
 os.environ["POSTGRES_DB"] = os.environ.get("POSTGRES_DB", "employers") + "_test"
+os.environ["VERIFICATION_RECHECK_ENABLED"] = "false"
 
 import pytest  # noqa: E402
 from benefit_common.testing import ensure_database, install_test_jwks  # noqa: E402

@@ -1,14 +1,16 @@
 """Внутренний API: с кем из кандидатов у работодателя уже был контакт
-(для подборки в employer-service / matching-service)."""
+(для подборки в employer-service / matching-service) и удаление данных
+пользователя (от auth-service)."""
 
 import uuid
 
 from benefit_common.internal import verify_internal_token
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from fastapi import status as http_status
+from sqlalchemy import delete, or_, select
 
 from app.api.deps import SessionDep
-from app.models import Application, Invitation
+from app.models import Application, HiringProcess, Invitation, TeamMember
 
 router = APIRouter(
     prefix="/internal/v1",
@@ -43,3 +45,18 @@ async def employer_contacts(
         if contacts.get(key) not in STICKY:
             contacts[key] = status
     return contacts
+
+
+@router.delete("/users/{user_id}", status_code=http_status.HTTP_204_NO_CONTENT)
+async def delete_user(user_id: uuid.UUID, session: SessionDep) -> None:
+    """Аккаунт удалён: приглашения, отклики и процессы найма (с интервью,
+    офферами и историей), где пользователь — кандидат или работодатель,
+    а также команда работодателя. Идемпотентно."""
+    for model in (HiringProcess, Invitation, Application):
+        await session.execute(
+            delete(model).where(
+                or_(model.candidate_id == user_id, model.employer_id == user_id)
+            )
+        )
+    await session.execute(delete(TeamMember).where(TeamMember.employer_id == user_id))
+    await session.commit()

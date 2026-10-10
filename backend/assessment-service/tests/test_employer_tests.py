@@ -2,6 +2,7 @@ import copy
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from benefit_common.settings import get_common_settings
 from benefit_common.testing import TestUser
 from httpx import AsyncClient
 from sqlalchemy import select, update
@@ -240,3 +241,64 @@ async def test_archived_test_cannot_be_sent(
     response = await assign(client, employer, test["id"], chat.add(candidate, employer))
 
     assert response.json()["error"]["code"] == "assessment_archived"
+
+
+INTERNAL = {"X-Internal-Token": get_common_settings().internal_api_token}
+
+
+async def delete_user(client: AsyncClient, user: TestUser) -> None:
+    for _ in range(2):  # идемпотентно
+        response = await client.delete(
+            f"/internal/v1/users/{user.id}", headers=INTERNAL
+        )
+        assert response.status_code == 204, response.text
+
+
+async def test_candidate_deletion_removes_attempts(
+    client: AsyncClient, candidate: TestUser, chat: FakeChat
+) -> None:
+    employer = TestUser("employer")
+    test = await create(client, employer)
+    assignment = (
+        await assign(client, employer, test["id"], chat.add(candidate, employer))
+    ).json()
+    attempt = await client.post(
+        f"{API}/assignments/{assignment['id']}/start", headers=candidate.headers
+    )
+    await solve(client, candidate, attempt.json()["id"])
+    await solve(client, candidate, (await start(client, candidate))["id"])
+
+    await delete_user(client, candidate)
+
+    history = await client.get(f"{API}/attempts", headers=candidate.headers)
+    assert history.json() == []
+    sent = await client.get(f"{API}/employer/assignments", headers=employer.headers)
+    assert sent.json() == []
+    # Тест работодателя остаётся.
+    assert (
+        len(
+            (await client.get(f"{API}/employer/tests", headers=employer.headers)).json()
+        )
+        == 1
+    )
+
+
+async def test_employer_deletion_removes_own_tests(
+    client: AsyncClient, candidate: TestUser, chat: FakeChat
+) -> None:
+    employer = TestUser("employer")
+    test = await create(client, employer)
+    assignment = (
+        await assign(client, employer, test["id"], chat.add(candidate, employer))
+    ).json()
+    attempt = await client.post(
+        f"{API}/assignments/{assignment['id']}/start", headers=candidate.headers
+    )
+    await solve(client, candidate, attempt.json()["id"])
+
+    await delete_user(client, employer)
+
+    tests = await client.get(f"{API}/employer/tests", headers=employer.headers)
+    assert tests.json() == []
+    mine = await client.get(f"{API}/assignments", headers=candidate.headers)
+    assert mine.json() == []

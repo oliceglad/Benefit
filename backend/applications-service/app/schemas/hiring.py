@@ -279,6 +279,7 @@ class ProcessSummary(BaseModel):
     vacancy_id: str | None
     vacancy_title: str
     company_name: str
+    company_id: uuid.UUID | None
     stage: HiringStage
     status: HiringStatus
     responsible: PersonBrief | None
@@ -309,6 +310,7 @@ class CandidateProcess(BaseModel):
     vacancy_id: str | None
     vacancy_title: str
     company_name: str
+    company_id: uuid.UUID | None
     stage: HiringStage
     status: HiringStatus
     # Контактное лицо со стороны компании.

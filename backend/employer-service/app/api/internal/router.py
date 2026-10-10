@@ -1,12 +1,15 @@
-"""Внутренний API для applications-service: вакансии и компании."""
+"""Внутренний API: вакансии и компании (для applications-service), удаление
+данных пользователя (от auth-service)."""
 
 import uuid
 
 from benefit_common.errors import NotFoundError
 from benefit_common.internal import verify_internal_token
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import delete
 
-from app.api.deps import EmployerServiceDep
+from app.api.deps import EmployerServiceDep, SessionDep
+from app.models import Company, NeedFeedback
 from app.schemas.employer import CompanyResponse, VacancyResponse
 
 router = APIRouter(
@@ -35,3 +38,15 @@ async def company_by_owner(
     if company is None:
         raise NotFoundError("Профиль компании не заполнен", code="company_not_found")
     return CompanyResponse.model_validate(company)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(user_id: uuid.UUID, session: SessionDep) -> None:
+    """Аккаунт удалён: компания работодателя со всеми потребностями и
+    вакансиями (каскадом), а также отметки работодателей по удалённому
+    кандидату. Идемпотентно."""
+    await session.execute(delete(Company).where(Company.owner_id == user_id))
+    await session.execute(
+        delete(NeedFeedback).where(NeedFeedback.candidate_id == user_id)
+    )
+    await session.commit()

@@ -77,6 +77,9 @@ class InvitationResponse(BaseModel):
     status: InvitationStatus
     candidate_id: uuid.UUID
     employer_id: uuid.UUID
+    # Профиль компании (GET /api/v1/employers/companies/{id}) со статусом
+    # проверки; null — у работодателя не было профиля компании.
+    company_id: uuid.UUID | None
     vacancy: Vacancy
     message: str | None
     response_message: str | None

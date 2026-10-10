@@ -246,3 +246,19 @@ async def test_contact_grant_delivered_by_relay(
             "source_id": invitation["id"],
         }
     ]
+
+
+async def test_invitation_links_company_profile(
+    client: AsyncClient, candidates: Any, employers: Any
+) -> None:
+    """По company_id фронтенд показывает актуальный статус проверки компании."""
+    employer, candidate = TestUser("employer"), published(candidates)
+    company_id = "6f1c2b9e-1d2a-4c5b-9e8f-0a1b2c3d4e5f"
+    employers.companies[employer.id] = {"id": company_id, "name": "ООО Ромашка"}
+
+    invitation = (await invite(client, employer, candidate)).json()
+    assert invitation["company_id"] == company_id
+
+    employers.companies.clear()  # нет профиля компании — ссылки нет
+    other = (await invite(client, employer, published(candidates))).json()
+    assert other["company_id"] is None

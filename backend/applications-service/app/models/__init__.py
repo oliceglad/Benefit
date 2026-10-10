@@ -48,6 +48,9 @@ class Invitation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     vacancy_id: Mapped[str | None] = mapped_column(String(64))
     vacancy_title: Mapped[str] = mapped_column(String(200))
     company_name: Mapped[str] = mapped_column(String(200))
+    # Компания работодателя в employer-service: по ней фронтенд показывает
+    # актуальный статус проверки («Проверенный работодатель»).
+    company_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     salary_from: Mapped[int | None] = mapped_column(Integer)
     salary_to: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
@@ -81,6 +84,9 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Снимок вакансии на момент отклика.
     vacancy_title: Mapped[str] = mapped_column(String(200))
     company_name: Mapped[str] = mapped_column(String(200))
+    # Компания работодателя в employer-service: по ней фронтенд показывает
+    # актуальный статус проверки («Проверенный работодатель»).
+    company_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     salary_from: Mapped[int | None] = mapped_column(Integer)
     salary_to: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
@@ -147,6 +153,9 @@ class HiringProcess(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     vacancy_id: Mapped[str | None] = mapped_column(String(64), index=True)
     vacancy_title: Mapped[str] = mapped_column(String(200))
     company_name: Mapped[str] = mapped_column(String(200))
+    # Компания работодателя в employer-service: по ней фронтенд показывает
+    # актуальный статус проверки («Проверенный работодатель»).
+    company_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
 
     stage: Mapped[str] = mapped_column(String(16), default=HiringStage.NEW)
     status: Mapped[str] = mapped_column(String(16), default=HiringStatus.ACTIVE)

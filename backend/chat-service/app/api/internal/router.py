@@ -1,13 +1,15 @@
-"""Внутренний API: applications-service синхронизирует диалоги с приглашениями."""
+"""Внутренний API: applications-service синхронизирует диалоги с приглашениями,
+auth-service сообщает об удалении аккаунта."""
 
 import uuid
 
 from benefit_common.errors import NotFoundError
 from benefit_common.internal import verify_internal_token
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import delete, or_, select
 
-from app.api.deps import ChatServiceDep, SessionDep, TaskServiceDep
-from app.models import Conversation, ConversationStatus, MessageKind
+from app.api.deps import ChatServiceDep, SessionDep, StorageDep, TaskServiceDep
+from app.models import Attachment, Conversation, ConversationStatus, MessageKind
 from app.schemas.chat import ConversationInfo, ConversationSync, InternalMessage
 
 router = APIRouter(
@@ -72,3 +74,27 @@ async def post_message(
     )
     await session.commit()
     return {"status": "ok"}
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: uuid.UUID, session: SessionDep, storage: StorageDep
+) -> None:
+    """Аккаунт удалён: переписки пользователя с сообщениями, заданиями и
+    файлами вложений. Идемпотентно."""
+    involved = or_(
+        Conversation.candidate_id == user_id, Conversation.employer_id == user_id
+    )
+    keys = list(
+        await session.scalars(
+            select(Attachment.storage_key)
+            .join(Conversation, Attachment.conversation_id == Conversation.id)
+            .where(involved)
+        )
+    )
+    # Сначала файлы, потом записи: если удаление прервётся, повторная
+    # доставка снова найдёт записи (удаление уже стёртого файла не падает).
+    for key in keys:
+        await storage.delete(key)
+    await session.execute(delete(Conversation).where(involved))
+    await session.commit()

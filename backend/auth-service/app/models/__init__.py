@@ -6,7 +6,9 @@
 
 from app.db.base import Base
 from app.models.external_identity import ExternalIdentity
+from app.models.outbox import OutboxMessage
 from app.models.tokens import (
+    CodePurpose,
     EmailVerificationCode,
     OAuthLoginCode,
     OAuthState,
@@ -16,10 +18,12 @@ from app.models.user import User, UserRole
 
 __all__ = [
     "Base",
+    "CodePurpose",
     "EmailVerificationCode",
     "ExternalIdentity",
     "OAuthLoginCode",
     "OAuthState",
+    "OutboxMessage",
     "RefreshToken",
     "User",
     "UserRole",

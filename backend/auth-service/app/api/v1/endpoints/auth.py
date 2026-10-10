@@ -2,13 +2,14 @@
 
 from fastapi import APIRouter, Request, Response, status
 
-from app.api.deps import AuthServiceDep, TokenServiceDep
+from app.api.deps import AccountServiceDep, AuthServiceDep, TokenServiceDep
 from app.core import cookies
 from app.core.config import settings
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.schemas.auth import (
     EmailRequest,
     LoginRequest,
+    PasswordResetRequest,
     RefreshRequest,
     RegisterRequest,
     RegisterResponse,
@@ -48,6 +49,26 @@ async def verify_email(
 async def resend_code(data: EmailRequest, service: AuthServiceDep) -> None:
     """Повторная отправка кода подтверждения."""
     await service.resend_code(data.email)
+
+
+@router.post("/password/forgot", status_code=status.HTTP_202_ACCEPTED)
+async def forgot_password(data: EmailRequest, service: AccountServiceDep) -> None:
+    """Восстановление пароля: код придёт на почту.
+
+    Ответ одинаковый для любых адресов — наличие аккаунта не раскрывается.
+    Подходит и для аккаунтов без пароля (вход через ФСП ID): так пароль
+    задаётся впервые.
+    """
+    await service.forgot_password(data.email)
+
+
+@router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    data: PasswordResetRequest, service: AccountServiceDep
+) -> None:
+    """Новый пароль по коду из письма. Все сессии завершаются — после
+    сброса нужно войти заново."""
+    await service.reset_password(data.email, data.code, data.new_password)
 
 
 @router.post("/login", response_model=TokenResponse)

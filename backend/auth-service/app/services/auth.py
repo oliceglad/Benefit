@@ -1,11 +1,9 @@
 """Регистрация и вход по почте и паролю."""
 
-import hmac
 import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi import status
-from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -13,28 +11,19 @@ from app.core.exceptions import (
     AppError,
     ConflictError,
     ForbiddenError,
-    ServiceUnavailableError,
     UnauthorizedError,
 )
-from app.core.security import (
-    generate_verification_code,
-    hash_password,
-    hash_verification_code,
-    verify_password,
-)
-from app.models.tokens import EmailVerificationCode
+from app.core.security import hash_password, verify_password
+from app.models.tokens import CodePurpose
 from app.models.user import User
 from app.repositories.users import UserRepository
 from app.schemas.auth import RegisterRequest, RegisterResponse, TokenResponse
+from app.services.codes import OneTimeCodes, invalid_code
 from app.services.email_policy import is_email_domain_allowed
-from app.services.mail_client import MailClient, MailDeliveryError
+from app.services.mail_client import MailClient
 from app.services.tokens import TokenService
 
 logger = logging.getLogger(__name__)
-
-
-def _invalid_code() -> AppError:
-    return AppError("Неверный код подтверждения", code="invalid_code")
 
 
 class AuthService:
@@ -43,6 +32,7 @@ class AuthService:
         self.mail = mail
         self.users = UserRepository(session)
         self.tokens = TokenService(session)
+        self.codes = OneTimeCodes(session, mail)
 
     async def register(self, data: RegisterRequest) -> RegisterResponse:
         if not is_email_domain_allowed(data.email):
@@ -62,7 +52,7 @@ class AuthService:
             # Пока действует код, повторная регистрация запрещена: иначе
             # злоумышленник подменил бы пароль, а владелец почты подтвердил
             # бы чужую регистрацию присланным ему кодом.
-            pending = await self._get_code(user)
+            pending = await self.codes.latest(user, CodePurpose.VERIFY_EMAIL)
             if pending is not None and pending.expires_at > datetime.now(UTC):
                 raise ConflictError(
                     "На эту почту уже отправлен код подтверждения. Введите его "
@@ -93,53 +83,19 @@ class AuthService:
         if user is None or user.is_email_verified or user.password_hash is None:
             return
 
-        last = await self._get_code(user)
-        if last is not None:
-            elapsed = datetime.now(UTC) - last.created_at
-            cooldown = timedelta(seconds=settings.verification_resend_cooldown_seconds)
-            if elapsed < cooldown:
-                retry_after = int((cooldown - elapsed).total_seconds()) + 1
-                raise AppError(
-                    f"Повторно запросить код можно через {retry_after} с",
-                    code="resend_cooldown",
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    headers={"Retry-After": str(retry_after)},
-                )
-
+        await self.codes.ensure_can_send(user, CodePurpose.VERIFY_EMAIL)
         await self._send_code(user)
 
     async def verify_email(self, email: str, code: str) -> TokenResponse:
         user = await self.users.get_by_email(email)
         if user is None:
-            raise _invalid_code()
+            raise invalid_code()
         if user.is_email_verified:
             raise ConflictError("Почта уже подтверждена", code="already_verified")
 
-        # Блокировка строки: параллельные запросы не обойдут лимит попыток.
-        stored = await self._get_code(user, lock=True)
-        if stored is None:
-            raise _invalid_code()
-        if stored.expires_at <= datetime.now(UTC):
-            raise AppError(
-                "Срок действия кода истёк, запросите новый", code="code_expired"
-            )
-        if stored.attempts >= settings.verification_code_max_attempts:
-            raise AppError(
-                "Превышено число попыток, запросите новый код",
-                code="too_many_attempts",
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-        if not hmac.compare_digest(stored.code_hash, hash_verification_code(code)):
-            stored.attempts += 1
-            await self.session.commit()
-            raise _invalid_code()
-
+        await self.codes.verify(user, CodePurpose.VERIFY_EMAIL, code)
         user.email_verified_at = datetime.now(UTC)
-        await self.session.execute(
-            delete(EmailVerificationCode).where(
-                EmailVerificationCode.user_id == user.id
-            )
-        )
+        await self.codes.discard(user, CodePurpose.VERIFY_EMAIL)
         tokens = await self.tokens.issue(user)
         await self.session.commit()
         return tokens
@@ -181,55 +137,11 @@ class AuthService:
         await self.session.commit()
         return tokens
 
-    async def _get_code(
-        self, user: User, *, lock: bool = False
-    ) -> EmailVerificationCode | None:
-        query = (
-            select(EmailVerificationCode)
-            .where(EmailVerificationCode.user_id == user.id)
-            .order_by(EmailVerificationCode.created_at.desc())
-            .limit(1)
-        )
-        if lock:
-            query = query.with_for_update()
-        return await self.session.scalar(query)
-
     async def _send_code(self, user: User) -> None:
         """Заменяет действующий код новым и отправляет его на почту."""
-        code = generate_verification_code()
-        await self.session.execute(
-            delete(EmailVerificationCode).where(
-                EmailVerificationCode.user_id == user.id
-            )
+        await self.codes.issue(
+            user,
+            CodePurpose.VERIFY_EMAIL,
+            to=user.email,
+            ttl_minutes=settings.verification_code_ttl_minutes,
         )
-        self.session.add(
-            EmailVerificationCode(
-                user_id=user.id,
-                code_hash=hash_verification_code(code),
-                expires_at=datetime.now(UTC)
-                + timedelta(minutes=settings.verification_code_ttl_minutes),
-            )
-        )
-        # Коммитим до отправки: если письмо не уйдёт, пользователь
-        # запросит код повторно, а аккаунт уже будет создан.
-        await self.session.commit()
-
-        try:
-            await self.mail.send_verification_code(
-                to=user.email,
-                code=code,
-                ttl_minutes=settings.verification_code_ttl_minutes,
-            )
-        except MailDeliveryError as exc:
-            # Код не доставлен — удаляем его, чтобы регистрацию или запрос
-            # кода можно было сразу повторить.
-            await self.session.execute(
-                delete(EmailVerificationCode).where(
-                    EmailVerificationCode.user_id == user.id
-                )
-            )
-            await self.session.commit()
-            raise ServiceUnavailableError(
-                "Не удалось отправить письмо, запросите код повторно позже",
-                code="mail_unavailable",
-            ) from exc

@@ -3,7 +3,7 @@ from benefit_common.testing import TestUser
 from httpx import AsyncClient
 
 from app.core.config import settings
-from tests.conftest import API, outbox, sync
+from tests.conftest import API, INTERNAL, outbox, sync
 
 
 async def send(client: AsyncClient, user: TestUser, conversation: str, **body) -> dict:
@@ -310,3 +310,23 @@ async def test_conversation_from_application(
         )
     ).json()
     assert view["status"] == "closed"
+
+
+async def test_account_deletion_removes_conversations_and_files(
+    client: AsyncClient, candidate: TestUser, employer: TestUser, conversation: str
+) -> None:
+    before = set(settings.files_dir.rglob("*"))
+    _, attachment = await upload(client, candidate, conversation)
+    await send(client, candidate, conversation, attachment_ids=[attachment["id"]])
+    files = [p for p in set(settings.files_dir.rglob("*")) - before if p.is_file()]
+    assert len(files) == 1
+
+    for _ in range(2):  # идемпотентно
+        response = await client.delete(
+            f"/internal/v1/users/{candidate.id}", headers=INTERNAL
+        )
+        assert response.status_code == 204
+
+    listed = await client.get(f"{API}/conversations", headers=employer.headers)
+    assert listed.json() == []
+    assert not any(p.exists() for p in files)

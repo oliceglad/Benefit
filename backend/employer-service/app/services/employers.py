@@ -19,6 +19,7 @@ from app.models import (
     VacancyStatus,
 )
 from app.schemas.employer import CompanyIn, NeedIn, VacancyIn
+from app.services.verification import reset_verification
 
 
 def _company_required() -> ConflictError:
@@ -49,8 +50,16 @@ class EmployerService:
         if company is None:
             company = Company(owner_id=employer.id)
             self.session.add(company)
+        basis = (company.inn, company.website)
         for field, value in data.model_dump(mode="json").items():
             setattr(company, field, value)
+        if (company.inn, company.website) != basis:
+            # Проверка основана на ИНН и сайте: при их смене её нужно пройти
+            # заново, иначе можно подменить компанию после подтверждения.
+            reset_verification(company)
+        elif company.registry_data:
+            # Юридическое наименование — только из реестра.
+            company.legal_name = company.registry_data["full_name"][:300]
         await self.session.commit()
         await self.session.refresh(company)
         return company

@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     matching_service_url: str = "http://localhost:8009"
     applications_service_url: str = "http://localhost:8005"
 
+    # Проверка компаний по открытому реестру ФНС (ЕГРЮЛ/ЕГРИП).
+    egrul_url: str = "https://egrul.nalog.ru"
+    registry_timeout_seconds: float = 10.0
+    # Проверенные компании периодически перепроверяются по реестру
+    # (ликвидация снимает статус).
+    verification_recheck_days: int = 30
+    verification_recheck_enabled: bool = True
+
     @computed_field
     @property
     def database_url(self) -> URL:

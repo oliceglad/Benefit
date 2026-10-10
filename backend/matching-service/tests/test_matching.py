@@ -32,6 +32,20 @@ async def test_index_follows_event_feed(source: FakeSource, indexer: Indexer) ->
     assert await indexed() == 1
 
 
+async def test_account_deletion_removes_candidate(
+    client: AsyncClient, source: FakeSource, indexer: Indexer
+) -> None:
+    alice = source.publish(document(name="Петрова Анна"))
+    source.publish(document(name="Иванов Иван"))
+    await indexer.sync_events()
+
+    for _ in range(2):  # идемпотентно
+        response = await client.delete(f"/internal/v1/users/{alice}", headers=INTERNAL)
+        assert response.status_code == 204
+
+    assert await indexed() == 1
+
+
 async def test_bootstrap_fills_empty_index(
     source: FakeSource, indexer: Indexer
 ) -> None:

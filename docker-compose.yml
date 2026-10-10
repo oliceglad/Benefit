@@ -137,6 +137,14 @@ services:
       SECRET_KEY: ${AUTH_SECRET_KEY:-change-me}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-change-me}
       MAIL_SERVICE_URL: http://mail-service:8000
+      # Удаление аккаунта: каждый сервис удаляет данные пользователя.
+      CANDIDATE_SERVICE_URL: http://candidate-service:8000
+      EMPLOYER_SERVICE_URL: http://employer-service:8000
+      APPLICATIONS_SERVICE_URL: http://applications-service:8000
+      CHAT_SERVICE_URL: http://chat-service:8000
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000
+      ASSESSMENT_SERVICE_URL: http://assessment-service:8000
+      MATCHING_SERVICE_URL: http://matching-service:8000
       OAUTH_FRONTEND_CALLBACK_URL: ${OAUTH_FRONTEND_CALLBACK_URL:-}
       FSP_ID_ENABLED: ${FSP_ID_ENABLED:-true}
       FSP_ID_ISSUER: ${FSP_ID_ISSUER:-http://localhost:8003/realms/fsp}

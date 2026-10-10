@@ -2,7 +2,7 @@
 
 import hmac
 import html
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
@@ -29,10 +29,46 @@ router = APIRouter(
 SenderDep = Annotated[MailSender, Depends(get_sender)]
 
 
+CodePurpose = Literal[
+    "verify_email", "reset_password", "change_email", "delete_account"
+]
+
+# Тема, заголовок, текст перед кодом и подсказка, если письмо не ожидали.
+CODE_TEXTS: dict[str, tuple[str, str, str, str]] = {
+    "verify_email": (
+        "код подтверждения",
+        "Подтверждение почты",
+        "Ваш код подтверждения почты в Benefit",
+        "Если вы не регистрировались в Benefit, просто проигнорируйте это письмо.",
+    ),
+    "reset_password": (
+        "восстановление пароля",
+        "Восстановление пароля",
+        "Код для восстановления пароля в Benefit",
+        "Если вы не запрашивали восстановление, проигнорируйте письмо: "
+        "пароль останется прежним.",
+    ),
+    "change_email": (
+        "подтверждение новой почты",
+        "Смена почты",
+        "Код для подтверждения новой почты в Benefit",
+        "Если вы не меняли почту в Benefit, просто проигнорируйте это письмо.",
+    ),
+    "delete_account": (
+        "удаление аккаунта",
+        "Удаление аккаунта",
+        "Код для подтверждения удаления аккаунта Benefit",
+        "Если вы не собирались удалять аккаунт, не сообщайте код никому и "
+        "смените пароль.",
+    ),
+}
+
+
 class VerificationCodeEmail(BaseModel):
     to: EmailStr
     code: str = Field(pattern=r"^\d{4,8}$")
     ttl_minutes: int = Field(gt=0, le=1440)
+    purpose: CodePurpose = "verify_email"
 
 
 class NotificationEmail(BaseModel):
@@ -63,11 +99,18 @@ async def health() -> dict[str, str]:
 async def send_verification_code(
     data: VerificationCodeEmail, sender: SenderDep
 ) -> SendResult:
+    subject, heading, intro, ignore = CODE_TEXTS[data.purpose]
     message = render(
         "verification_code",
         to=str(data.to),
-        subject=f"Benefit: код подтверждения {data.code}",
-        params={"code": data.code, "ttl_minutes": data.ttl_minutes},
+        subject=f"Benefit: {subject} {data.code}",
+        params={
+            "code": data.code,
+            "ttl_minutes": data.ttl_minutes,
+            "heading": heading,
+            "intro": intro,
+            "ignore": ignore,
+        },
     )
     try:
         await sender.send(message)

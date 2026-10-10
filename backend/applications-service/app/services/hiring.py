@@ -164,6 +164,7 @@ class HiringService:
         vacancy_id: str | None,
         vacancy_title: str,
         company_name: str,
+        company_id: uuid.UUID | None,
         actor_id: uuid.UUID,
     ) -> HiringProcess:
         existing = await self._by_source(source, source_id)
@@ -177,6 +178,7 @@ class HiringService:
             vacancy_id=vacancy_id,
             vacancy_title=vacancy_title,
             company_name=company_name,
+            company_id=company_id,
             stage=HiringStage.NEW,
             status=HiringStatus.ACTIVE,
             stage_changed_at=now(),

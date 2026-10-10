@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     verification_code_ttl_minutes: int = 10
     verification_code_max_attempts: int = 5
     verification_resend_cooldown_seconds: int = 60
+    # Коды для сброса пароля, смены почты и удаления аккаунта.
+    account_code_ttl_minutes: int = 15
 
     # После N неудачных попыток входа аккаунт блокируется на M минут.
     login_max_failures: int = 10
@@ -80,6 +82,17 @@ class Settings(BaseSettings):
     # Межсервисное взаимодействие.
     mail_service_url: str = "http://localhost:8002"
     internal_api_token: str = INSECURE_DEFAULT
+
+    # Сервисы, хранящие данные пользователя: при удалении аккаунта каждый
+    # получает событие и удаляет свои данные (через outbox, с повторами).
+    candidate_service_url: str = "http://localhost:8004"
+    employer_service_url: str = "http://localhost:8008"
+    applications_service_url: str = "http://localhost:8005"
+    chat_service_url: str = "http://localhost:8007"
+    notification_service_url: str = "http://localhost:8006"
+    assessment_service_url: str = "http://localhost:8009"
+    matching_service_url: str = "http://localhost:8010"
+    outbox_relay_enabled: bool = True
 
     # OAuth / OIDC.
     oauth_state_ttl_minutes: int = 10

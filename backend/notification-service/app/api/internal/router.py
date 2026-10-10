@@ -1,9 +1,12 @@
-"""Внутренний API: другие сервисы создают уведомления пользователям."""
+"""Внутренний API: другие сервисы создают уведомления пользователям,
+auth-service сообщает об удалении аккаунта."""
+
+import uuid
 
 from benefit_common.internal import verify_internal_token
 from benefit_common.outbox import enqueue
 from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.api.deps import SessionDep
 from app.models import EmailDelivery, Notification
@@ -61,3 +64,16 @@ async def create_notification(
     await session.commit()
     await session.refresh(notification)
     return NotificationResponse.model_validate(notification)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(user_id: uuid.UUID, session: SessionDep) -> None:
+    """Аккаунт удалён: уведомления и очередь писем пользователя (в том числе
+    ещё не отправленные). Идемпотентно."""
+    await session.execute(
+        delete(EmailDelivery).where(
+            EmailDelivery.payload["user_id"].astext == str(user_id)
+        )
+    )
+    await session.execute(delete(Notification).where(Notification.user_id == user_id))
+    await session.commit()

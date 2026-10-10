@@ -1,5 +1,6 @@
 """Точка входа FastAPI-приложения."""
 
+import contextlib
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -13,7 +14,8 @@ from app.api.well_known import router as well_known_router
 from app.core.config import settings
 from app.core.jwt import get_keys
 from app.core.logging import SERVICE_NAME, setup_logging
-from app.db.session import engine
+from app.db.session import async_session_factory, engine
+from app.services.deletion import build_relay
 
 
 @asynccontextmanager
@@ -22,7 +24,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     setup_logging(settings.log_level)
     # Загружаем (или создаём) ключ подписи заранее, а не на первом запросе.
     get_keys()
-    yield
+    async with contextlib.AsyncExitStack() as stack:
+        if settings.outbox_relay_enabled:
+            # Доставка событий удаления аккаунта в другие сервисы.
+            await stack.enter_async_context(
+                build_relay(async_session_factory).running()
+            )
+        yield
     await engine.dispose()
 
 

@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -89,6 +89,17 @@ class TokenService:
             .values(revoked_at=datetime.now(UTC))
         )
         await self.session.commit()
+
+    async def end_sessions(self, user_id: uuid.UUID) -> None:
+        """Завершает все сессии (смена пароля или почты).
+
+        Токены удаляются, а не помечаются отозванными: попытка другого
+        устройства обновить старую сессию не должна считаться утечкой и
+        отзывать новую сессию пользователя.
+        """
+        await self.session.execute(
+            delete(RefreshToken).where(RefreshToken.user_id == user_id)
+        )
 
     async def revoke_all(self, user_id: uuid.UUID) -> None:
         await self.session.execute(

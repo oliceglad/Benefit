@@ -27,6 +27,31 @@ class CompanySize(StrEnum):
     ENTERPRISE = "1000+"
 
 
+class VerificationStatus(StrEnum):
+    """Проверка компании.
+
+    * ``unverified`` — не проверялась (или изменились ИНН / сайт);
+    * ``registry_confirmed`` — компания действует по ЕГРЮЛ/ЕГРИП, но связь
+      работодателя с ней не доказана: ждёт модератора;
+    * ``verified`` — проверенный работодатель (автоматически или модератором);
+    * ``rejected`` — ИНН нет в реестре, компания ликвидирована или
+      модератор отказал.
+    """
+
+    UNVERIFIED = "unverified"
+    REGISTRY_CONFIRMED = "registry_confirmed"
+    VERIFIED = "verified"
+    REJECTED = "rejected"
+
+
+VERIFICATION_TITLES = {
+    VerificationStatus.UNVERIFIED: "Не проверена",
+    VerificationStatus.REGISTRY_CONFIRMED: "Найдена в ЕГРЮЛ, ожидает проверки",
+    VerificationStatus.VERIFIED: "Проверенный работодатель",
+    VerificationStatus.REJECTED: "Проверка не пройдена",
+}
+
+
 class NeedStatus(StrEnum):
     ACTIVE = "active"
     CLOSED = "closed"
@@ -49,7 +74,7 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(unique=True)
     name: Mapped[str] = mapped_column(String(200))
     legal_name: Mapped[str | None] = mapped_column(String(300))
-    inn: Mapped[str | None] = mapped_column(String(12))
+    inn: Mapped[str | None] = mapped_column(String(12), index=True)
     industry: Mapped[str] = mapped_column(String(32))
     description: Mapped[str] = mapped_column(Text)
     website: Mapped[str | None] = mapped_column(String(300))
@@ -60,6 +85,38 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     contact_email: Mapped[str | None] = mapped_column(String(320))
     contact_phone: Mapped[str | None] = mapped_column(String(32))
     telegram: Mapped[str | None] = mapped_column(String(64))
+
+    # Проверка компании (статус выставляет только сервер).
+    verification_status: Mapped[str] = mapped_column(
+        String(24),
+        default=VerificationStatus.UNVERIFIED,
+        server_default=VerificationStatus.UNVERIFIED.value,
+    )
+    # Результаты проверок: [{code, passed, message}].
+    verification_checks: Mapped[list[dict[str, Any]]] = _json_list()
+    # Данные из ЕГРЮЛ/ЕГРИП на момент последней проверки.
+    registry_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # auto — по открытым источникам, moderator — решение модератора.
+    verified_by: Mapped[str | None] = mapped_column(String(16))
+    verification_note: Mapped[str | None] = mapped_column(Text)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def verification(self) -> dict[str, Any]:
+        """Блок проверки для ответов API (публичная схема берёт часть полей)."""
+        status = VerificationStatus(self.verification_status)
+        return {
+            "status": status,
+            "title": VERIFICATION_TITLES[status],
+            "is_verified": status == VerificationStatus.VERIFIED,
+            "verified_at": self.verified_at,
+            "registry": self.registry_data,
+            "verified_by": self.verified_by,
+            "note": self.verification_note,
+            "checked_at": self.checked_at,
+            "checks": self.verification_checks or [],
+        }
 
 
 class HiringNeed(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -147,6 +204,7 @@ class Vacancy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 __all__ = [
     "Base",
     "Company",
+    "VerificationStatus",
     "CompanySize",
     "FeedbackVerdict",
     "NeedFeedback",

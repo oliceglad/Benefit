@@ -3,6 +3,7 @@
 
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -12,12 +13,29 @@ from app.db.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.user import UserRole, user_role_enum
 
 
+class CodePurpose(StrEnum):
+    """Для чего выдан одноразовый код из письма."""
+
+    VERIFY_EMAIL = "verify_email"
+    RESET_PASSWORD = "reset_password"
+    CHANGE_EMAIL = "change_email"
+    DELETE_ACCOUNT = "delete_account"
+
+
 class EmailVerificationCode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Одноразовый код из письма. У пользователя действует не больше одного
+    кода каждого назначения: новый код заменяет прежний."""
+
     __tablename__ = "email_verification_codes"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
+    purpose: Mapped[str] = mapped_column(
+        String(16), default=CodePurpose.VERIFY_EMAIL, server_default="verify_email"
+    )
+    # Новый адрес — для смены почты (код отправлен на него).
+    new_email: Mapped[str | None] = mapped_column(String(320))
     code_hash: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(default=0, server_default="0")

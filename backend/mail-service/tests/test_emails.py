@@ -59,6 +59,23 @@ async def test_sends_verification_code(client: AsyncClient, sender: FakeSender) 
     assert "123456" in body.get_content()
 
 
+async def test_code_email_text_depends_on_purpose(
+    client: AsyncClient, sender: FakeSender
+) -> None:
+    response = await client.post(
+        "/api/v1/emails/verification-code",
+        json={**PAYLOAD, "purpose": "reset_password"},
+        headers={"X-Internal-Token": settings.internal_api_token},
+    )
+
+    assert response.status_code == 202
+    [message] = sender.sent
+    assert message["Subject"] == "Benefit: восстановление пароля 123456"
+    body = message.get_body(("plain",))
+    assert body is not None
+    assert "Код для восстановления пароля" in body.get_content()
+
+
 async def test_sends_notification_with_escaped_html(
     client: AsyncClient, sender: FakeSender
 ) -> None:

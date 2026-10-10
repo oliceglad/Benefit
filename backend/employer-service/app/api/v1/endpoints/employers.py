@@ -3,10 +3,19 @@
 import uuid
 from typing import Annotated
 
-from benefit_common.security import CurrentPrincipal, Employer
+from benefit_common.errors import NotFoundError
+from benefit_common.security import Admin, CurrentPrincipal, Employer
 from fastapi import APIRouter, Query, status
+from sqlalchemy import select
 
-from app.api.deps import ContactsDep, EmployerServiceDep, MatcherDep
+from app.api.deps import (
+    ContactsDep,
+    EmployerServiceDep,
+    MatcherDep,
+    SessionDep,
+    VerifierDep,
+)
+from app.models import Company, VerificationStatus
 from app.schemas.employer import (
     CompanyIn,
     CompanyResponse,
@@ -16,9 +25,11 @@ from app.schemas.employer import (
     NeedIn,
     NeedResponse,
     NeedStatusUpdate,
+    PublicCompanyResponse,
     VacancyIn,
     VacancyResponse,
     VacancyStatusUpdate,
+    VerificationDecision,
 )
 from app.services.matching import need_criteria
 
@@ -48,14 +59,77 @@ async def save_company(
     return CompanyResponse.model_validate(await service.save_company(employer, data))
 
 
+@router.post("/company/verification", response_model=CompanyResponse, tags=["компания"])
+async def verify_company(
+    employer: Employer, service: EmployerServiceDep, verifier: VerifierDep
+) -> CompanyResponse:
+    """Проверка компании по открытым источникам.
+
+    ИНН проверяется по ЕГРЮЛ/ЕГРИП ФНС (существует, действует; юридическое
+    наименование, ОГРН, руководитель — из реестра). Значок «Проверенный
+    работодатель» выдаётся автоматически, если почта аккаунта на домене
+    сайта компании и на сайте опубликован этот ИНН. Иначе — статус
+    ``registry_confirmed`` и решение модератора. Список ``checks`` объясняет,
+    что пройдено и чего не хватает.
+    """
+    company = await service.my_company(employer)
+    return CompanyResponse.model_validate(
+        await verifier.verify(company, employer.email)
+    )
+
+
 @router.get(
-    "/companies/{company_id}", response_model=CompanyResponse, tags=["компания"]
+    "/companies/{company_id}",
+    response_model=PublicCompanyResponse,
+    tags=["компания"],
 )
 async def company(
     company_id: uuid.UUID, _: CurrentPrincipal, service: EmployerServiceDep
-) -> CompanyResponse:
+) -> PublicCompanyResponse:
     """Профиль компании для кандидатов (например, из приглашения)."""
-    return CompanyResponse.model_validate(await service.company(company_id))
+    return PublicCompanyResponse.model_validate(await service.company(company_id))
+
+
+# --- Модерация компаний (администратор) ---
+
+
+@router.get(
+    "/admin/companies", response_model=list[CompanyResponse], tags=["модерация"]
+)
+async def companies_for_review(
+    _: Admin,
+    session: SessionDep,
+    status: VerificationStatus = VerificationStatus.REGISTRY_CONFIRMED,
+) -> list[CompanyResponse]:
+    """Компании по статусу проверки (по умолчанию — ждут модератора)."""
+    companies = await session.scalars(
+        select(Company)
+        .where(Company.verification_status == status)
+        .order_by(Company.checked_at)
+    )
+    return [CompanyResponse.model_validate(c) for c in companies]
+
+
+@router.post(
+    "/admin/companies/{company_id}/verification",
+    response_model=CompanyResponse,
+    tags=["модерация"],
+)
+async def moderate_company(
+    company_id: uuid.UUID,
+    data: VerificationDecision,
+    _: Admin,
+    session: SessionDep,
+    verifier: VerifierDep,
+) -> CompanyResponse:
+    """Решение модератора: подтвердить (только действующую по реестру
+    компанию) или отказать с комментарием для работодателя."""
+    company = await session.get(Company, company_id)
+    if company is None:
+        raise NotFoundError("Компания не найдена", code="company_not_found")
+    return CompanyResponse.model_validate(
+        await verifier.moderate(company, data.decision, data.note)
+    )
 
 
 # --- Потребности и подборка ---

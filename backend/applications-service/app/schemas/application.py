@@ -32,6 +32,8 @@ class ApplicationResponse(BaseModel):
     candidate_id: uuid.UUID
     vacancy_title: str
     company_name: str
+    # Профиль компании со статусом проверки (employer-service).
+    company_id: uuid.UUID | None
     salary_from: int | None
     salary_to: int | None
     currency: str

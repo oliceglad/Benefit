@@ -242,3 +242,26 @@ async def test_internal_api(client: AsyncClient) -> None:
     assert (
         await client.get(f"/internal/v1/vacancies/{vacancy['id']}")
     ).status_code == 401
+
+
+async def test_account_deletion_removes_company(client: AsyncClient) -> None:
+    employer = TestUser("employer")
+    await with_company(client, employer)
+    vacancy = (
+        await client.post(f"{API}/vacancies", json=VACANCY, headers=employer.headers)
+    ).json()
+
+    for _ in range(2):  # идемпотентно
+        response = await client.delete(
+            f"/internal/v1/users/{employer.id}", headers=INTERNAL
+        )
+        assert response.status_code == 204
+
+    assert (
+        await client.get(f"/internal/v1/vacancies/{vacancy['id']}", headers=INTERNAL)
+    ).status_code == 404
+    assert (
+        await client.get(
+            f"/internal/v1/companies/by-owner/{employer.id}", headers=INTERNAL
+        )
+    ).status_code == 404

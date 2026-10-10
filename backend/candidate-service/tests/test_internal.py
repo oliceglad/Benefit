@@ -2,6 +2,7 @@ from benefit_common.settings import get_common_settings
 from httpx import AsyncClient
 from sqlalchemy import TextClause, text
 
+from app.db.session import engine
 from tests.conftest import User, published_profile
 
 HEADERS = {"X-Internal-Token": get_common_settings().internal_api_token}
@@ -288,3 +289,35 @@ async def test_revoked_personal_data_consent_hides_profile(
         f"/api/v1/candidates/{candidate.id}", headers=employer.headers
     )
     assert response.status_code == 404
+
+
+async def test_account_deletion_removes_candidate_data(
+    client: AsyncClient, candidate: User, employer: User
+) -> None:
+    await published_profile(client, candidate)
+    assert await grant(client, candidate, employer) == 204
+
+    for _ in range(2):  # повторная доставка ничего не ломает
+        response = await client.delete(
+            f"/internal/v1/users/{candidate.id}", headers=HEADERS
+        )
+        assert response.status_code == 204
+    view = await client.get(
+        f"/api/v1/candidates/{candidate.id}", headers=employer.headers
+    )
+    assert view.status_code == 404
+    events = (await client.get("/internal/v1/events", headers=HEADERS)).json()
+    assert events[-1]["event_type"] == "candidate.profile.deleted"
+
+
+async def test_employer_deletion_removes_contact_access(
+    client: AsyncClient, candidate: User, employer: User
+) -> None:
+    await published_profile(client, candidate)
+    await grant(client, candidate, employer)
+
+    await client.delete(f"/internal/v1/users/{employer.id}", headers=HEADERS)
+
+    async with engine.begin() as conn:
+        grants = await conn.scalar(text("SELECT count(*) FROM contact_grants"))
+    assert grants == 0

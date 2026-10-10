@@ -59,6 +59,16 @@ class Smoke:
             time.sleep(1)
         raise AssertionError(f"Не дождались: {what}")
 
+    def patient(self, send: Callable[[], httpx.Response]) -> httpx.Response:
+        """Повторяет запрос, пока шлюз отвечает 429 (лимит на вход и действия
+        с аккаунтом — 10 в минуту с одного адреса, а тест шлёт их подряд)."""
+        deadline = time.monotonic() + 90
+        while True:
+            response = send()
+            if response.status_code != 429 or time.monotonic() > deadline:
+                return response
+            time.sleep(int(response.headers.get("Retry-After", "5")))
+
     def mail_to(self, email: str, subject_part: str) -> dict[str, Any] | None:
         messages = httpx.get(
             f"{MAILPIT}/api/v1/search", params={"query": f"to:{email}"}
@@ -220,6 +230,35 @@ class Smoke:
                 headers=employer,
             )
         )
+        self.step("Проверка компании (employer → реестр ФНС)")
+        self.check(
+            self.http.put(
+                "/api/v1/employers/company",
+                json={
+                    "name": "ООО Смоук",
+                    "inn": "7707083893",  # реальный ИНН (ПАО Сбербанк)
+                    "website": "https://www.sberbank.ru",
+                    "industry": "fintech",
+                    "description": "Платёжные сервисы для малого бизнеса.",
+                    "contact_email": "hr@smoke-test.ru",
+                },
+                headers=employer,
+            )
+        )
+        checked = self.http.post(
+            "/api/v1/employers/company/verification", headers=employer
+        )
+        if checked.status_code == 503:
+            # Внешний реестр недоступен (нет интернета или капча) — не
+            # ошибка связности сервисов.
+            print("  ! реестр ФНС недоступен, проверка пропущена")
+        else:
+            verification = self.check(checked)["verification"]
+            # Почта @mail.ru не доказывает связь с компанией — модератор.
+            assert verification["status"] == "registry_confirmed", verification
+            assert verification["registry"]["ogrn"] == "1027700132195"
+            self.ok("ИНН найден в ЕГРЮЛ, значок — только после модерации")
+
         need = self.check(
             self.http.post(
                 "/api/v1/employers/needs",
@@ -763,6 +802,73 @@ class Smoke:
         failed = [name for name, passed in checks.items() if not passed]
         assert not failed, failed
         self.ok("кандидат не видит чужие данные, /internal закрыт")
+
+        self.step("Жизненный цикл аккаунта (auth → mail, удаление во всех сервисах)")
+
+        def post(path: str, body: dict[str, Any], **kwargs: Any) -> httpx.Response:
+            return self.patient(lambda: self.http.post(path, json=body, **kwargs))
+
+        self.check(
+            post("/api/v1/auth/password/forgot", {"email": candidate_email}), 202
+        )
+        mail = self.wait_for(
+            "письмо для сброса пароля",
+            lambda: self.mail_to(candidate_email, "восстановление пароля"),
+        )
+        code = re.search(r"\d{6}", mail["Subject"]).group()
+        reset = {"email": candidate_email, "code": code, "new_password": "reset456pass"}
+        self.check(post("/api/v1/auth/password/reset", reset), 204)
+        tokens = self.check(
+            post(
+                "/api/v1/auth/login",
+                {"email": candidate_email, "password": "reset456pass"},
+            )
+        )
+        candidate = {"Authorization": f"Bearer {tokens['access_token']}"}
+        tokens = self.check(
+            post(
+                "/api/v1/users/me/password",
+                {"current_password": "reset456pass", "new_password": "changed789pass"},
+                headers=candidate,
+            )
+        )
+        candidate = {"Authorization": f"Bearer {tokens['access_token']}"}
+        self.check(
+            post(
+                "/api/v1/users/me/delete",
+                {"password": "changed789pass"},
+                headers=candidate,
+            ),
+            204,
+        )
+
+        def erased() -> bool:
+            profile = self.http.get(
+                f"/api/v1/candidates/{candidate_id}", headers=employer
+            )
+            conversations = self.check(
+                self.http.get("/api/v1/chat/conversations", headers=employer)
+            )
+            processes = self.check(
+                self.http.get("/api/v1/hiring/processes", headers=employer)
+            )
+            received = self.check(
+                self.http.get("/api/v1/applications/received", headers=employer)
+            )
+            return (
+                profile.status_code == 404
+                and not any(c["candidate_id"] == candidate_id for c in conversations)
+                and not any(p["candidate_id"] == candidate_id for p in processes)
+                and not any(a["candidate_id"] == candidate_id for a in received)
+            )
+
+        self.wait_for("удаление данных кандидата во всех сервисах", erased, 60)
+        login = post(
+            "/api/v1/auth/login",
+            {"email": candidate_email, "password": "changed789pass"},
+        )
+        assert login.status_code == 401
+        self.ok("сброс и смена пароля, удаление аккаунта и данных во всех сервисах")
         print("\nВсе сервисы связаны корректно ✔")
 
 

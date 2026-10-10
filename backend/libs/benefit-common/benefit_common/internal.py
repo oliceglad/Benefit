@@ -97,6 +97,9 @@ class InternalClient:
     async def put(self, path: str, **kwargs: Any) -> httpx.Response:
         return await self.request("PUT", path, **kwargs)
 
+    async def delete(self, path: str, **kwargs: Any) -> httpx.Response:
+        return await self.request("DELETE", path, **kwargs)
+
 
 def raise_for_client_error(response: httpx.Response) -> None:
     """Пробрасывает ответ 4xx соседнего сервиса как прикладную ошибку."""

@@ -43,4 +43,7 @@ class UserResponse(BaseModel):
     role: UserRole
     full_name: str | None
     is_email_verified: bool
+    # Нет пароля — смена почты и удаление подтверждаются кодом из письма,
+    # а пароль задаётся через восстановление.
+    has_password: bool
     created_at: datetime

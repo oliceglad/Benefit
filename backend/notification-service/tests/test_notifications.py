@@ -155,3 +155,23 @@ async def test_in_app_only_notification_has_no_email(client: AsyncClient) -> Non
     await notify(client, TestUser("candidate"), email=False)
     async with async_session_factory() as session:
         assert (await session.scalars(select(EmailDelivery))).all() == []
+
+
+async def test_account_deletion_removes_notifications_and_emails(
+    client: AsyncClient,
+) -> None:
+    alice, bob = TestUser("candidate"), TestUser("employer")
+    await notify(client, alice)
+    await notify(client, bob, dedup_key="bob-1")
+
+    for _ in range(2):  # идемпотентно
+        response = await client.delete(
+            f"/internal/v1/users/{alice.id}", headers=INTERNAL
+        )
+        assert response.status_code == 204
+
+    assert (await client.get(API, headers=alice.headers)).json()["items"] == []
+    assert len((await client.get(API, headers=bob.headers)).json()["items"]) == 1
+    async with async_session_factory() as session:
+        queued = list(await session.scalars(select(EmailDelivery)))
+    assert [e.payload["user_id"] for e in queued] == [str(bob.id)]

@@ -76,6 +76,7 @@ class ApplicationService:
             candidate_id=candidate.id,
             vacancy_title=vacancy["title"],
             company_name=vacancy["company"]["name"],
+            company_id=uuid.UUID(vacancy["company"]["id"]),
             salary_from=vacancy["salary_from"],
             salary_to=vacancy["salary_to"],
             currency=vacancy["currency"],
@@ -93,6 +94,7 @@ class ApplicationService:
             vacancy_id=str(application.vacancy_id),
             vacancy_title=application.vacancy_title,
             company_name=application.company_name,
+            company_id=application.company_id,
             actor_id=candidate.id,
         )
         # Кандидат откликнулся сам — работодатель видит его контакты.

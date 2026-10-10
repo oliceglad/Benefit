@@ -14,7 +14,7 @@ from typing import Annotated, Any, Literal
 from benefit_common.internal import verify_internal_token
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.deps import ProfileServiceDep, SessionDep
@@ -273,3 +273,24 @@ async def list_events(
         )
         for e in events
     ]
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: uuid.UUID, service: ProfileServiceDep, session: SessionDep
+) -> None:
+    """Аккаунт удалён в auth-service: удаляем профиль кандидата (с фото,
+    достижениями и открытыми контактами) и доступы удалённого работодателя
+    к контактам кандидатов. Идемпотентно.
+
+    Журнал согласий сохраняется с отметкой об отзыве — как подтверждение
+    законности обработки данных в прошлом.
+    """
+    profile = await service.profiles.get(user_id)
+    if profile is not None:
+        # Событие удаления профиля уберёт кандидата из поиска (matching).
+        await service.delete(profile)
+    await session.execute(
+        delete(ContactGrant).where(ContactGrant.employer_id == user_id)
+    )
+    await session.commit()

@@ -1,8 +1,8 @@
 """Схемы запросов и ответов аутентификации."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
 
 from app.core.config import settings
 from app.models.user import SelfServiceRole
@@ -12,6 +12,21 @@ def _normalize_email(value: str) -> str:
     return value.strip().lower()
 
 
+def _check_password_strength(value: str) -> str:
+    if not any(ch.isalpha() for ch in value) or not any(ch.isdigit() for ch in value):
+        raise ValueError("Пароль должен содержать буквы и цифры")
+    return value
+
+
+# Новый пароль: те же правила, что и при регистрации.
+NewPassword = Annotated[
+    str,
+    Field(min_length=settings.password_min_length, max_length=128),
+    AfterValidator(_check_password_strength),
+]
+Code = Annotated[str, Field(pattern=r"^\d{6}$")]
+
+
 class EmailRequest(BaseModel):
     email: EmailStr
 
@@ -19,18 +34,9 @@ class EmailRequest(BaseModel):
 
 
 class RegisterRequest(EmailRequest):
-    password: str = Field(min_length=settings.password_min_length, max_length=128)
+    password: NewPassword
     role: SelfServiceRole
     full_name: str | None = Field(default=None, max_length=255)
-
-    @field_validator("password")
-    @classmethod
-    def _check_password_strength(cls, value: str) -> str:
-        if not any(ch.isalpha() for ch in value) or not any(
-            ch.isdigit() for ch in value
-        ):
-            raise ValueError("Пароль должен содержать буквы и цифры")
-        return value
 
 
 class RegisterResponse(BaseModel):
@@ -42,7 +48,14 @@ class RegisterResponse(BaseModel):
 
 
 class VerifyEmailRequest(EmailRequest):
-    code: str = Field(pattern=r"^\d{6}$")
+    code: Code
+
+
+class PasswordResetRequest(EmailRequest):
+    """Сброс пароля по коду из письма."""
+
+    code: Code
+    new_password: NewPassword
 
 
 class LoginRequest(EmailRequest):
