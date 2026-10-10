@@ -48,8 +48,19 @@ function filenameFromDisposition(disposition: string | null): string {
   return /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? 'resume.pdf'
 }
 
+// Duck typing instead of instanceof: the fetch Blob and the environment Blob
+// (e.g. jsdom in tests) can be different classes.
+function isBlob(value: unknown): value is Blob {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Blob).arrayBuffer === 'function' &&
+    typeof (value as Blob).type === 'string'
+  )
+}
+
 function requireBlob(response: BinaryResponse, expectedType: string): Blob {
-  if (!(response.data instanceof Blob) || !response.data.type.includes(expectedType)) {
+  if (!isBlob(response.data) || !response.data.type.includes(expectedType)) {
     throw new Error('Сервер вернул файл в неожиданном формате')
   }
   return response.data

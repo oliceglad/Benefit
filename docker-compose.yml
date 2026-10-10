@@ -51,8 +51,10 @@ services:
     build:
       context: ./backend/gateway
     ports:
-      # Единственный порт, доступный извне. Базы данных, Mailpit, Keycloak
-      # и mock ФСП ID опубликованы только на 127.0.0.1 (для разработки).
+      # Снаружи доступны только шлюз и фронтенд (он проксирует API сюда же).
+      # Базы данных, Mailpit, Keycloak и mock ФСП ID опубликованы только на
+      # 127.0.0.1 (для разработки). На сервере шлюз тоже только на 127.0.0.1:
+      # GATEWAY_PORT=127.0.0.1:8000, весь трафик идёт через фронтенд.
       - "${GATEWAY_PORT:-8000}:80"
     depends_on:
       core:
@@ -544,13 +546,19 @@ services:
     depends_on:
       - gateway
 
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - gateway
+  # --- Фронтенд: SPA + прокси API на шлюз (тот же origin) -----------------
+  frontend:
+    <<: *service-defaults
+    build:
+      context: ./frontend
+      args:
+        VITE_LEGAL_OPERATOR_NAME: ${VITE_LEGAL_OPERATOR_NAME:-}
+        VITE_LEGAL_OPERATOR_ADDRESS: ${VITE_LEGAL_OPERATOR_ADDRESS:-}
+        VITE_LEGAL_CONTACT_EMAIL: ${VITE_LEGAL_CONTACT_EMAIL:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - gateway
 
 configs:
   # Пароли баз подставляются из .env (те же, что у сервисов).

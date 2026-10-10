@@ -46,6 +46,7 @@ docker compose up --build
 
 | Что                       | Адрес                                   |
 |---------------------------|-----------------------------------------|
+| Фронтенд (SPA)            | http://localhost:3000                   |
 | Core API / Swagger        | http://localhost:8000/docs              |
 | Auth API / Swagger        | http://localhost:8000/api/v1/auth/docs  |
 | Candidate API / Swagger   | http://localhost:8000/api/v1/candidates/docs |
@@ -87,6 +88,61 @@ WebSocket `/api/v1/chat/ws`) → chat-service, `/api/v1/employers/*` и
 ```bash
 python backend/e2e/smoke_test.py   # нужны пакеты httpx и httpx-ws
 ```
+
+## CI/CD и сервер
+
+Workflow `.github/workflows/ci-cd.yml` запускается на каждый push и PR:
+
+- **Бэкенд:** ruff (lint и формат); тесты каждого сервиса отдельной задачей
+  на чистом PostgreSQL.
+- **Фронтенд:** eslint, typecheck, vitest, сборка.
+- **Деплой** на сервер `DEPLOY_HOST`: только из `main` и только после зелёных проверок,
+  также вручную через «Run workflow». Код копируется по SSH (rsync) в
+  `/opt/benefit`, затем на сервере выполняется `.github/scripts/deploy.sh`:
+  `docker compose up -d --build`, ожидание healthy и проверка
+  `/api/v1/status` через фронтенд.
+
+Настройка один раз — GitHub → Settings → Secrets and variables → Actions:
+
+| Где | Имя | Значение |
+|---|---|---|
+| Variables | `DEPLOY_HOST` | адрес сервера (IP или домен) |
+| Variables | `DEPLOY_KNOWN_HOSTS` | ключи сервера — вывод `ssh-keyscan <DEPLOY_HOST>` |
+| Secrets | `DEPLOY_SSH_KEY` | приватный ключ, с которым пускает `root@<DEPLOY_HOST>` |
+
+Чтобы переехать на другой сервер, поменяйте `DEPLOY_HOST` и
+`DEPLOY_KNOWN_HOSTS`, правки в коде не нужны. Без `DEPLOY_KNOWN_HOSTS`
+деплой не запустится: по этим ключам проверяется, что код уходит на наш
+сервер, а не на подменённый.
+
+На сервере (`<DEPLOY_HOST>` — адрес из переменной):
+
+| Что | Адрес |
+|---|---|
+| Фронтенд | http://<DEPLOY_HOST>/ |
+| Swagger | http://<DEPLOY_HOST>/docs, `http://<DEPLOY_HOST>/api/v1/<сервис>/docs` |
+| Шлюз, Grafana, Prometheus, Mailpit, базы | только `127.0.0.1` на сервере — через SSH-туннель |
+
+Снаружи открыт только фронтенд: он отдаёт SPA и проксирует на шлюз `/api`,
+`/docs`, `/.well-known` (тот же origin, CORS не нужен). Лимиты шлюз считает
+по реальному IP клиента из `X-Forwarded-For` — заголовку верит только от
+адресов внутренней сети Docker.
+
+- **`.env`.** При первом деплое скрипт ставит Docker и создаёт
+  `/opt/benefit/.env` со случайными паролями и секретами. Дальше `.env` не
+  перезаписывается — меняйте его на сервере вручную.
+- **`APP_ENV=local`.** Сервер работает по HTTP, а `production` требует HTTPS
+  (Secure-cookie). Поэтому `APP_ENV=local`, но `DEBUG=false`.
+- **Пакеты тестов** в git нет, на сервер их нужно положить вручную, затем
+  перезапустить сервис:
+
+  ```bash
+  scp backend/assessment-service/content/*.json root@<DEPLOY_HOST>:/opt/benefit/backend/assessment-service/content/
+  ssh root@<DEPLOY_HOST> 'cd /opt/benefit && docker compose restart assessment-service'
+  ```
+
+- Grafana и письма (Mailpit) — через туннель:
+  `ssh -L 3001:127.0.0.1:3001 -L 8025:127.0.0.1:8025 root@<DEPLOY_HOST>`.
 
 ## Мониторинг (Prometheus, Grafana, Alertmanager)
 
