@@ -107,6 +107,34 @@ def clear(response: Response) -> None:
         )
 
 
+def oauth_browser_id(request: Request) -> str | None:
+    """Идентификатор браузера, начавшего вход через внешнего провайдера."""
+    return request.cookies.get(settings.oauth_browser_cookie_name) or None
+
+
+def ensure_oauth_browser_id(request: Request, response: Response) -> str:
+    """Выдаёт (или продлевает) cookie браузера для входа через провайдера.
+
+    State и одноразовый код входа принимаются только вместе с этой cookie,
+    поэтому чужую ссылку возврата от провайдера нельзя «подсунуть» жертве.
+    SameSite=Lax: cookie должна прийти при переходе обратно с сайта
+    провайдера.
+    """
+    value = oauth_browser_id(request) or secrets.token_urlsafe(32)
+    response.set_cookie(
+        settings.oauth_browser_cookie_name,
+        value,
+        max_age=settings.oauth_state_ttl_minutes * 60
+        + settings.oauth_login_code_ttl_seconds,
+        path=settings.refresh_cookie_path,
+        domain=settings.cookie_domain,
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
+    )
+    return value
+
+
 def csrf_ok(request: Request) -> bool:
     """Double-submit: заголовок совпадает с cookie (для запросов по cookie)."""
     if request.method.upper() in SAFE_METHODS:

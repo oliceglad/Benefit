@@ -13,7 +13,7 @@ from app.services.oidc import (
     get_provider_registry,
 )
 from tests.conftest import FakeMailClient
-from tests.test_auth import register_and_verify
+from tests.test_auth import PASSWORD, register, register_and_verify
 
 API = "/api/v1"
 
@@ -333,3 +333,86 @@ async def test_admin_role_from_provider_is_ignored(
         f"{API}/auth/oauth/fsp_id/authorize", params={"role": "admin"}
     )
     assert start.status_code == 422
+
+
+# --- Привязка входа к браузеру ---------------------------------------------------
+
+
+async def test_callback_from_another_browser_is_rejected(
+    client: AsyncClient, provider: FakeProvider
+) -> None:
+    """Login CSRF: злоумышленник начал вход у себя и прислал жертве ссылку
+    возврата от провайдера — в браузере жертвы она не срабатывает."""
+    start = await client.get(
+        f"{API}/auth/oauth/fsp_id/authorize", params={"role": "candidate"}
+    )
+    state = parse_qs(urlparse(start.headers["location"]).query)["state"][0]
+
+    client.cookies.clear()  # браузер жертвы: cookie злоумышленника у неё нет
+    callback = await client.get(
+        f"{API}/auth/oauth/fsp_id/callback", params={"code": "c", "state": state}
+    )
+    query = parse_qs(urlparse(callback.headers["location"]).query)
+    assert query == {"error": ["invalid_state"]}
+
+
+async def test_login_code_from_another_browser_is_rejected(
+    client: AsyncClient, provider: FakeProvider
+) -> None:
+    query = await login_via_provider(client, role="candidate")
+
+    client.cookies.clear()
+    response = await client.post(
+        f"{API}/auth/oauth/exchange", json={"code": query["code"][0]}
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_login_code"
+
+
+async def test_link_started_by_another_user_is_rejected(
+    client: AsyncClient, provider: FakeProvider, mail: FakeMailClient
+) -> None:
+    """Злоумышленник начинает привязку ФСП ID к своему аккаунту и присылает
+    ссылку жертве: ФСП ID жертвы не должен привязаться к его аккаунту."""
+    attacker = await register_and_verify(client, mail, "attacker@mail.ru")
+    start = await client.post(
+        f"{API}/auth/oauth/fsp_id/link",
+        headers={"Authorization": f"Bearer {attacker['access_token']}"},
+    )
+    url = start.json()["authorization_url"]
+    state = parse_qs(urlparse(url).query)["state"][0]
+
+    client.cookies.clear()  # жертва входит в ФСП ID в своём браузере
+    callback = await client.get(
+        f"{API}/auth/oauth/fsp_id/callback", params={"code": "c", "state": state}
+    )
+    query = parse_qs(urlparse(callback.headers["location"]).query)
+    assert query == {"error": ["invalid_state"]}
+
+    identities = await client.get(
+        f"{API}/users/me/identities",
+        headers={"Authorization": f"Bearer {attacker['access_token']}"},
+    )
+    assert identities.json() == []
+
+
+async def test_provider_login_drops_password_of_unverified_account(
+    client: AsyncClient, provider: FakeProvider, mail: FakeMailClient
+) -> None:
+    """Предварительный захват: злоумышленник зарегистрировал чужую почту со
+    своим паролем и не подтвердил её. После входа владельца через провайдер
+    пароль злоумышленника не работает."""
+    await register(client, "ivanov@fsp-test.ru", "employer")
+
+    query = await login_via_provider(client, role="candidate")
+    tokens = await client.post(
+        f"{API}/auth/oauth/exchange", json={"code": query["code"][0]}
+    )
+    claims = decode_access_token(tokens.json()["access_token"])
+    assert claims["realm_access"]["roles"] == ["candidate"]
+
+    login = await client.post(
+        f"{API}/auth/login",
+        json={"email": "ivanov@fsp-test.ru", "password": PASSWORD},
+    )
+    assert login.status_code == 401

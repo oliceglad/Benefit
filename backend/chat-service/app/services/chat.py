@@ -343,6 +343,19 @@ class ChatService:
         if conversation.status != ConversationStatus.OPEN:
             raise ConflictError("Переписка закрыта", code="conversation_closed")
         name, content_type = validate_upload(filename, data)
+        pending = await self.session.scalar(
+            select(func.count()).where(
+                Attachment.uploader_id == principal.id,
+                Attachment.message_id.is_(None),
+            )
+        )
+        if (pending or 0) >= settings.max_pending_attachments:
+            raise AppError(
+                "Слишком много неотправленных файлов: отправьте их в сообщении "
+                "или повторите позже",
+                code="too_many_pending_attachments",
+                status_code=429,
+            )
         key = await self.storage.save(data)
         attachment = Attachment(
             conversation_id=conversation.id,

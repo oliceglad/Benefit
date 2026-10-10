@@ -1,9 +1,9 @@
 """Конфигурация приложения, загружаемая из переменных окружения."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import computed_field
+from pydantic import computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -60,6 +60,12 @@ class Settings(BaseSettings):
             port=self.postgres_port,
             database=self.postgres_db,
         )
+
+    @model_validator(mode="after")
+    def _check_production(self) -> Self:
+        if self.app_env == "production" and self.debug:
+            raise ValueError("DEBUG=true недопустим в production")
+        return self
 
 
 @lru_cache

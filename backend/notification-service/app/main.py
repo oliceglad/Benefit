@@ -36,13 +36,15 @@ async def health() -> dict[str, str]:
 
 
 def create_app() -> FastAPI:
+    # В production документация API не публикуется.
+    public_docs = settings.app_env != "production"
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
         lifespan=lifespan,
-        docs_url=f"{settings.api_prefix}/docs",
+        docs_url=f"{settings.api_prefix}/docs" if public_docs else None,
         redoc_url=None,
-        openapi_url=f"{settings.api_prefix}/openapi.json",
+        openapi_url=f"{settings.api_prefix}/openapi.json" if public_docs else None,
     )
     setup_app(app, SERVICE_NAME)
     app.include_router(health_router, prefix=settings.api_prefix)

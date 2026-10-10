@@ -28,14 +28,18 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     """Создаёт и настраивает экземпляр приложения."""
+    # В production документация API не публикуется.
+    public_docs = settings.app_env != "production"
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
         lifespan=lifespan,
         # Под префиксом auth, чтобы документация была доступна через шлюз.
-        docs_url=f"{settings.api_v1_prefix}/auth/docs",
+        docs_url=f"{settings.api_v1_prefix}/auth/docs" if public_docs else None,
         redoc_url=None,
-        openapi_url=f"{settings.api_v1_prefix}/auth/openapi.json",
+        openapi_url=(
+            f"{settings.api_v1_prefix}/auth/openapi.json" if public_docs else None
+        ),
     )
 
     if settings.cors_origins:

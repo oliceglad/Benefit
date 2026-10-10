@@ -49,6 +49,8 @@ class OAuthState(TimestampMixin, Base):
     link_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE")
     )
+    # Хэш идентификатора браузера, начавшего вход (cookie benefit_oauth).
+    browser_hash: Mapped[str | None] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -62,4 +64,6 @@ class OAuthLoginCode(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # Код обменивается только в том браузере, где начинался вход.
+    browser_hash: Mapped[str | None] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

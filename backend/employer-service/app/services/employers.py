@@ -240,9 +240,14 @@ class EmployerService:
         if skill:
             query = query.where(Vacancy.skills.contains([skill]))
         if q:
-            pattern = f"%{q}%"
+            # %, _ и \ в запросе — обычные символы, а не шаблон LIKE.
+            escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
             query = query.where(
-                or_(Vacancy.title.ilike(pattern), Vacancy.description.ilike(pattern))
+                or_(
+                    Vacancy.title.ilike(pattern, escape="\\"),
+                    Vacancy.description.ilike(pattern, escape="\\"),
+                )
             )
         if salary_min:
             # Подходят вакансии, где верхняя граница не ниже ожиданий.

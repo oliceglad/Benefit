@@ -1,5 +1,6 @@
 """Вход через внешних OIDC-провайдеров и сопоставление с локальными аккаунтами."""
 
+import hmac
 import logging
 import secrets
 import uuid
@@ -14,7 +15,7 @@ from app.core.config import settings
 from app.core.exceptions import AppError, ConflictError, ForbiddenError
 from app.core.security import generate_token, hash_token
 from app.models.external_identity import ExternalIdentity
-from app.models.tokens import OAuthLoginCode, OAuthState
+from app.models.tokens import EmailVerificationCode, OAuthLoginCode, OAuthState
 from app.models.user import SELF_SERVICE_ROLES, User, UserRole
 from app.repositories.users import ExternalIdentityRepository, UserRepository
 from app.schemas.auth import TokenResponse
@@ -37,6 +38,14 @@ def role_from_claims(claims: dict[str, Any]) -> UserRole | None:
         if role.value in roles:
             return role
     return None
+
+
+def _same_browser(stored_hash: str | None, browser_id: str | None) -> bool:
+    return bool(
+        stored_hash
+        and browser_id
+        and hmac.compare_digest(stored_hash, hash_token(browser_id))
+    )
 
 
 def _full_name(claims: dict[str, Any]) -> str | None:
@@ -65,13 +74,16 @@ class OAuthService:
     async def start(
         self,
         provider_id: str,
+        browser_id: str,
         role: UserRole | None = None,
         link_user_id: uuid.UUID | None = None,
     ) -> str:
         """Сохраняет state + PKCE и возвращает URL страницы входа провайдера.
 
-        Если передан ``link_user_id``, после возврата внешний аккаунт
-        привязывается к этому пользователю вместо входа.
+        ``browser_id`` — значение cookie браузера, начавшего вход: возврат
+        от провайдера принимается только в нём. Если передан
+        ``link_user_id``, после возврата внешний аккаунт привязывается
+        к этому пользователю вместо входа.
         """
         provider = self.registry.get(provider_id)
         state = secrets.token_urlsafe(32)
@@ -97,18 +109,30 @@ class OAuthService:
                 nonce=nonce,
                 role=role,
                 link_user_id=link_user_id,
+                browser_hash=hash_token(browser_id),
                 expires_at=now + timedelta(minutes=settings.oauth_state_ttl_minutes),
             )
         )
         await self.session.commit()
         return url
 
-    async def complete(self, provider_id: str, code: str, state: str) -> OAuthResult:
+    async def complete(
+        self, provider_id: str, code: str, state: str, browser_id: str | None
+    ) -> OAuthResult:
         """Обрабатывает возврат от провайдера: вход или привязка аккаунта."""
         provider = self.registry.get(provider_id)
         stored = await self.session.get(OAuthState, state)
         if stored is None or stored.provider != provider.id:
             raise AppError("Сессия входа не найдена", code="invalid_state")
+        # Ссылка возврата, начатая в другом браузере (например, присланная
+        # злоумышленником), не принимается: иначе жертва вошла бы в чужой
+        # аккаунт или привязала свой ФСП ID к аккаунту злоумышленника.
+        if not _same_browser(stored.browser_hash, browser_id):
+            raise AppError(
+                "Сессия входа не найдена: завершите вход в том же браузере, "
+                "где его начали",
+                code="invalid_state",
+            )
         await self.session.delete(stored)
         await self.session.commit()
         if stored.expires_at <= datetime.now(UTC):
@@ -138,6 +162,7 @@ class OAuthService:
             OAuthLoginCode(
                 user_id=user.id,
                 code_hash=hash_token(login_code),
+                browser_hash=stored.browser_hash,
                 expires_at=datetime.now(UTC)
                 + timedelta(seconds=settings.oauth_login_code_ttl_seconds),
             )
@@ -145,13 +170,17 @@ class OAuthService:
         await self.session.commit()
         return OAuthResult(login_code=login_code)
 
-    async def exchange(self, login_code: str) -> TokenResponse:
+    async def exchange(self, login_code: str, browser_id: str | None) -> TokenResponse:
         stored = await self.session.scalar(
             select(OAuthLoginCode)
             .where(OAuthLoginCode.code_hash == hash_token(login_code))
             .with_for_update()
         )
-        if stored is None or stored.expires_at <= datetime.now(UTC):
+        if (
+            stored is None
+            or stored.expires_at <= datetime.now(UTC)
+            or not _same_browser(stored.browser_hash, browser_id)
+        ):
             raise AppError("Код входа недействителен", code="invalid_login_code")
         user = await self.session.get(User, stored.user_id)
         await self.session.delete(stored)
@@ -221,7 +250,25 @@ class OAuthService:
                     code="email_conflict",
                 )
             if not user.is_email_verified:
+                # Почту не подтвердили, значит пароль мог задать не её
+                # владелец (заранее зарегистрировав чужой адрес). Владелец
+                # подтвердил почту у провайдера — сбрасываем чужой пароль,
+                # роль и коды, иначе по паролю в аккаунт войдёт посторонний.
                 user.email_verified_at = datetime.now(UTC)
+                user.password_hash = None
+                user.full_name = _full_name(claims)
+                role = role_from_claims(claims) or requested_role
+                if role is None:
+                    raise AppError(
+                        "Выберите роль: кандидат или работодатель",
+                        code="role_required",
+                    )
+                user.role = role
+                await self.session.execute(
+                    delete(EmailVerificationCode).where(
+                        EmailVerificationCode.user_id == user.id
+                    )
+                )
         else:
             role = role_from_claims(claims) or requested_role
             if role is None:

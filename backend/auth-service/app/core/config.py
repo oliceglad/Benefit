@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     # OAuth / OIDC.
     oauth_state_ttl_minutes: int = 10
     oauth_login_code_ttl_seconds: int = 120
+    # Cookie, привязывающая вход через провайдера к браузеру, который его
+    # начал (защита от login CSRF и подмены привязки аккаунта).
+    oauth_browser_cookie_name: str = "benefit_oauth"
     # Куда вернуть браузер после входа через внешнего провайдера
     # (страница фронтенда). По умолчанию — отладочный эндпоинт сервиса.
     oauth_frontend_callback_url: str | None = None

@@ -1,6 +1,8 @@
+import pytest
 from benefit_common.testing import TestUser
 from httpx import AsyncClient
 
+from app.core.config import settings
 from tests.conftest import API, outbox, sync
 
 
@@ -193,6 +195,26 @@ async def test_upload_restrictions(
         headers=candidate.headers,
     )
     assert response.status_code == 422
+
+
+async def test_pending_uploads_are_limited(
+    client: AsyncClient,
+    candidate: TestUser,
+    conversation: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Неотправленные файлы не копятся без ограничений (защита диска)."""
+    monkeypatch.setattr(settings, "max_pending_attachments", 2)
+    first = (await upload(client, candidate, conversation))[1]
+    assert (await upload(client, candidate, conversation))[0] == 201
+
+    status, body = await upload(client, candidate, conversation)
+    assert status == 429
+    assert body["error"]["code"] == "too_many_pending_attachments"
+
+    # Отправленный файл больше не считается неотправленным.
+    await send(client, candidate, conversation, attachment_ids=[first["id"]])
+    assert (await upload(client, candidate, conversation))[0] == 201
 
 
 async def test_message_notifications_are_throttled(

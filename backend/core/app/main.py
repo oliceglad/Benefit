@@ -23,10 +23,15 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     """Создаёт и настраивает экземпляр приложения."""
+    # В production документация API не публикуется.
+    public_docs = settings.app_env != "production"
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
         lifespan=lifespan,
+        docs_url="/docs" if public_docs else None,
+        redoc_url="/redoc" if public_docs else None,
+        openapi_url="/openapi.json" if public_docs else None,
     )
 
     setup_app(app, SERVICE_NAME)

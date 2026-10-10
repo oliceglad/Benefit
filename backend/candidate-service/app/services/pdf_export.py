@@ -223,7 +223,14 @@ def build_context(
 
 def render_resume_pdf(context: dict[str, Any]) -> bytes:
     """CPU-ёмкая операция: вызывать из пула потоков."""
-    from weasyprint import HTML  # тяжёлый импорт: только при генерации
+    # Тяжёлый импорт: только при генерации.
+    from weasyprint import HTML
+    from weasyprint.urls import URLFetcher
 
     html = _env.get_template("resume.html").render(**context)
-    return HTML(string=html, base_url=str(TEMPLATES_DIR)).write_pdf()
+    # Встраивается только фото (data:) — без сетевых запросов и чтения
+    # локальных файлов, даже если в шаблон попадёт чужой URL.
+    fetcher = URLFetcher(allowed_protocols={"data"})
+    return HTML(
+        string=html, base_url=str(TEMPLATES_DIR), url_fetcher=fetcher
+    ).write_pdf()

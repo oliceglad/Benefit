@@ -273,7 +273,7 @@ class AttemptService:
     async def current_task(
         self, principal: Principal, attempt_id: uuid.UUID
     ) -> TaskView:
-        attempt = await self._load(principal, attempt_id)
+        attempt = await self._load(principal, attempt_id, lock=True)
         await self._expire_if_overdue(attempt)
         self._ensure_in_progress(attempt)
         current = self._current(attempt)
@@ -305,7 +305,7 @@ class AttemptService:
     async def answer(
         self, principal: Principal, attempt_id: uuid.UUID, data: AnswerRequest
     ) -> AnswerResponse:
-        attempt = await self._load(principal, attempt_id)
+        attempt = await self._load(principal, attempt_id, lock=True)
         await self._expire_if_overdue(attempt)
         self._ensure_in_progress(attempt)
         current = self._current(attempt)
@@ -348,7 +348,7 @@ class AttemptService:
         self, principal: Principal, attempt_id: uuid.UUID
     ) -> AttemptResponse:
         """Досрочное завершение: оставшиеся задачи — 0 баллов."""
-        attempt = await self._load(principal, attempt_id)
+        attempt = await self._load(principal, attempt_id, lock=True)
         await self._expire_if_overdue(attempt)
         if attempt.status == AttemptStatus.IN_PROGRESS:
             await self._finalize(attempt, AttemptStatus.COMPLETED)
@@ -510,10 +510,15 @@ class AttemptService:
 
     # --- Внутреннее ---------------------------------------------------------------
 
-    async def _load(self, principal: Principal, attempt_id: uuid.UUID) -> Attempt:
-        attempt = await self.session.scalar(
-            _attempt_query().where(Attempt.id == attempt_id)
-        )
+    async def _load(
+        self, principal: Principal, attempt_id: uuid.UUID, *, lock: bool = False
+    ) -> Attempt:
+        query = _attempt_query().where(Attempt.id == attempt_id)
+        if lock:
+            # Ответы и завершение одной попытки выполняются по очереди:
+            # параллельный запрос не засчитает задачу дважды.
+            query = query.with_for_update(of=Attempt)
+        attempt = await self.session.scalar(query)
         # Чужие попытки неотличимы от несуществующих.
         if attempt is None or attempt.user_id != principal.id:
             raise NotFoundError("Попытка не найдена", code="attempt_not_found")

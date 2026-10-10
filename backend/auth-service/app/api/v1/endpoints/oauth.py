@@ -43,26 +43,34 @@ async def list_providers(registry: ProviderRegistryDep) -> list[ProviderInfo]:
 async def authorize(
     provider: str,
     service: OAuthServiceDep,
+    request: Request,
     role: Annotated[
         SelfServiceRole | None,
         Query(description="Роль для нового аккаунта, если её не передал провайдер"),
     ] = None,
 ) -> RedirectResponse:
     """Перенаправляет браузер на страницу входа провайдера."""
-    url = await service.start(provider, role)
-    return RedirectResponse(url, status_code=status.HTTP_302_FOUND)
+    redirect = RedirectResponse("", status_code=status.HTTP_302_FOUND)
+    browser_id = cookies.ensure_oauth_browser_id(request, redirect)
+    redirect.headers["location"] = await service.start(provider, browser_id, role)
+    return redirect
 
 
 @router.post("/oauth/{provider}/link", response_model=AuthorizationUrlResponse)
 async def link(
-    provider: str, user: CurrentUser, service: OAuthServiceDep
+    provider: str,
+    user: CurrentUser,
+    service: OAuthServiceDep,
+    request: Request,
+    response: Response,
 ) -> AuthorizationUrlResponse:
     """Привязка внешнего аккаунта (например, ФСП ID) к текущему пользователю.
 
     Фронтенд перенаправляет браузер на ``authorization_url``; после входа
     у провайдера браузер вернётся на фронтенд с ``?linked=<provider>``.
     """
-    url = await service.start(provider, link_user_id=user.id)
+    browser_id = cookies.ensure_oauth_browser_id(request, response)
+    url = await service.start(provider, browser_id, link_user_id=user.id)
     return AuthorizationUrlResponse(authorization_url=url)
 
 
@@ -70,6 +78,7 @@ async def link(
 async def callback(
     provider: str,
     service: OAuthServiceDep,
+    request: Request,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
@@ -81,7 +90,9 @@ async def callback(
     if not code or not state:
         return _frontend_redirect(error="invalid_request")
     try:
-        result = await service.complete(provider, code, state)
+        result = await service.complete(
+            provider, code, state, cookies.oauth_browser_id(request)
+        )
     except AppError as exc:
         logger.info("OAuth login via %s failed: %s", provider, exc.code)
         return _frontend_redirect(error=exc.code)
@@ -100,13 +111,14 @@ async def exchange(
 ) -> TokenResponse:
     """Обмен одноразового кода входа на пару токенов
     (``X-Auth-Mode: cookie`` — в cookie)."""
-    tokens = await service.exchange(data.code)
+    tokens = await service.exchange(data.code, cookies.oauth_browser_id(request))
     return cookies.deliver(tokens, request, response)
 
 
 @router.get("/oauth-dev-callback", response_model=None, include_in_schema=False)
 async def dev_callback(
     service: OAuthServiceDep,
+    request: Request,
     code: str | None = None,
     error: str | None = None,
     linked: str | None = None,
@@ -119,4 +131,4 @@ async def dev_callback(
         return {"linked": linked}
     if error or not code:
         raise AppError(f"Вход не выполнен: {error}", code=error or "invalid_request")
-    return await service.exchange(code)
+    return await service.exchange(code, cookies.oauth_browser_id(request))

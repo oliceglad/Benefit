@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     max_attachments_per_message: int = 10
     # Неприкреплённые к сообщению загрузки удаляются через столько часов.
     orphan_attachment_ttl_hours: int = 24
+    # Неотправленных загрузок на пользователя (защита диска от переполнения).
+    max_pending_attachments: int = 20
 
     message_max_length: int = 4000
     # Уведомление о новых сообщениях — не чаще раза в N минут на диалог.

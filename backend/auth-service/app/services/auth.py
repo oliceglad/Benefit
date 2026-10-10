@@ -115,7 +115,8 @@ class AuthService:
         if user.is_email_verified:
             raise ConflictError("Почта уже подтверждена", code="already_verified")
 
-        stored = await self._get_code(user)
+        # Блокировка строки: параллельные запросы не обойдут лимит попыток.
+        stored = await self._get_code(user, lock=True)
         if stored is None:
             raise _invalid_code()
         if stored.expires_at <= datetime.now(UTC):
@@ -180,13 +181,18 @@ class AuthService:
         await self.session.commit()
         return tokens
 
-    async def _get_code(self, user: User) -> EmailVerificationCode | None:
-        return await self.session.scalar(
+    async def _get_code(
+        self, user: User, *, lock: bool = False
+    ) -> EmailVerificationCode | None:
+        query = (
             select(EmailVerificationCode)
             .where(EmailVerificationCode.user_id == user.id)
             .order_by(EmailVerificationCode.created_at.desc())
             .limit(1)
         )
+        if lock:
+            query = query.with_for_update()
+        return await self.session.scalar(query)
 
     async def _send_code(self, user: User) -> None:
         """Заменяет действующий код новым и отправляет его на почту."""

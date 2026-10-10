@@ -1,8 +1,11 @@
 import io
+from types import SimpleNamespace
 
+import pytest
 from httpx import AsyncClient
 from PIL import Image
 
+from app.services import pdf_export
 from tests.conftest import API, User, published_profile
 
 
@@ -65,3 +68,29 @@ async def test_delete_photo(client: AsyncClient, candidate: User) -> None:
 
     response = await client.get(f"{API}/me/photo", headers=candidate.headers)
     assert response.status_code == 404
+
+
+async def test_photo_is_embedded_in_pdf(client: AsyncClient, candidate: User) -> None:
+    """Фото (data:) встраивается, хотя внешние ресурсы в PDF запрещены."""
+    assert await upload(client, candidate, image_bytes()) == 204
+
+    response = await client.get(f"{API}/me/resume.pdf", headers=candidate.headers)
+
+    assert response.status_code == 200
+    assert b"/Subtype /Image" in response.content
+
+
+def test_pdf_does_not_fetch_external_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Даже чужой URL в шаблоне не приводит к чтению файлов или запросам."""
+    html = (
+        '<img src="file:///etc/passwd">'
+        '<img src="http://169.254.169.254/latest/meta-data">'
+    )
+    template = SimpleNamespace(render=lambda **_: html)
+    monkeypatch.setattr(pdf_export._env, "get_template", lambda _: template)
+
+    pdf = pdf_export.render_resume_pdf({})
+
+    assert b"/Subtype /Image" not in pdf
