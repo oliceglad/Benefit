@@ -149,6 +149,7 @@ jobs:
             BatchMode yes
             PreferredAuthentications publickey
             ServerAliveInterval 30
+            ServerAliveCountMax 10
           EOF
 
       - name: Подготовка сервера
@@ -174,4 +175,29 @@ jobs:
             ./ deploy:${DEPLOY_DIR}/
 
       - name: Сборка и запуск
-        run: ssh deploy "cd ${DEPLOY_DIR} && PUBLIC_HOST=${DEPLOY_HOST} bash .github/scripts/deploy.sh"
+        run: |
+          # Деплой идёт на сервере в фоне (setsid + nohup): обрыв SSH во время
+          # долгой сборки его не прерывает. Лог забирается короткими
+          # подключениями, итог — из deploy.status.
+          ssh deploy "cd ${DEPLOY_DIR} && rm -f deploy.status deploy.log && \
+            PUBLIC_HOST=${DEPLOY_HOST} setsid nohup bash .github/scripts/deploy.sh --detached \
+            </dev/null >/dev/null 2>&1 &"
+          offset=0
+          deadline=$((SECONDS + 45 * 60))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            sleep 15
+            # Сервер под нагрузкой может не ответить — это не повод падать.
+            if ssh -o ConnectTimeout=20 deploy \
+                "tail -c +$((offset + 1)) ${DEPLOY_DIR}/deploy.log 2>/dev/null" > chunk; then
+              cat chunk
+              offset=$((offset + $(wc -c < chunk)))
+            fi
+            status=$(ssh -o ConnectTimeout=20 deploy "cat ${DEPLOY_DIR}/deploy.status 2>/dev/null" || true)
+            if [ -n "$status" ]; then
+              ssh deploy "tail -c +$((offset + 1)) ${DEPLOY_DIR}/deploy.log" || true
+              echo "Деплой завершился с кодом $status"
+              exit "$status"
+            fi
+          done
+          echo "Деплой не завершился за 45 минут — смотрите ${DEPLOY_DIR}/deploy.log на сервере"
+          exit 1

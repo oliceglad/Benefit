@@ -2,7 +2,11 @@
 # Деплой Benefit (фронтенд + бэкенд) на сервер. Запускается на сервере из
 # каталога проекта: CI копирует код через rsync и вызывает скрипт по SSH.
 #
-#   PUBLIC_HOST=<адрес сервера> bash .github/scripts/deploy.sh
+#   PUBLIC_HOST=<адрес сервера> bash .github/scripts/deploy.sh [--detached]
+#
+# --detached: вывод — в deploy.log, код выхода — в deploy.status. CI запускает
+# так, чтобы обрыв SSH во время долгой сборки не убивал деплой, и забирает
+# лог короткими подключениями.
 #
 # Идемпотентен: при первом запуске ставит Docker и создаёт .env со случайными
 # секретами; дальше .env не трогает (пароли БД менять после создания томов
@@ -13,11 +17,34 @@
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-PUBLIC_HOST="${PUBLIC_HOST:?укажите PUBLIC_HOST — адрес сервера}"
-HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-600}"
 cd "$APP_DIR"
 
+if [ "${1:-}" = "--detached" ]; then
+    exec >deploy.log 2>&1
+    trap 'echo $? > "$APP_DIR/deploy.status"' EXIT
+fi
+
+PUBLIC_HOST="${PUBLIC_HOST:?укажите PUBLIC_HOST — адрес сервера}"
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-600}"
+
 log() { printf '\n▶ %s\n' "$*"; }
+
+# Два деплоя одновременно не идут.
+exec 9>/var/lock/benefit-deploy.lock
+flock -n 9 || { echo "Деплой уже выполняется"; exit 1; }
+
+# --- Память -----------------------------------------------------------------
+# Сборка дюжины образов и стек из ~25 контейнеров легко съедают память
+# небольшого сервера; без swap ядро убивает процессы (OOM), вплоть до sshd.
+if [ "$(swapon --noheadings | wc -l)" -eq 0 ] && [ ! -f /swapfile ]; then
+    log "Создаю swap 4 ГБ (/swapfile)"
+    fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+free -h
 
 # --- Docker -----------------------------------------------------------------
 if ! command -v docker >/dev/null 2>&1; then
@@ -72,7 +99,12 @@ mkdir -p backend/assessment-service/content
 
 # --- Запуск -----------------------------------------------------------------
 log "Сборка и запуск (ревизия $(cat REVISION 2>/dev/null || echo '?'))"
-docker compose up -d --build --remove-orphans
+# Образы собираются по одному: параллельная сборка всех сразу
+# перегружает небольшой сервер. Общие слои берутся из кэша.
+for service in $(docker compose config --services); do
+    docker compose build "$service"
+done
+docker compose up -d --remove-orphans
 
 log "Жду, пока контейнеры станут healthy (до ${HEALTH_TIMEOUT} с)"
 deadline=$((SECONDS + HEALTH_TIMEOUT))
