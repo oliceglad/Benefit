@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from benefit_common.errors import ConflictError, NotFoundError
+from benefit_common.errors import AppError, ConflictError, NotFoundError
 from benefit_common.security import Principal
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,12 +18,45 @@ from app.models import (
     Vacancy,
     VacancyStatus,
 )
-from app.schemas.employer import CompanyIn, NeedIn, VacancyIn
+from app.schemas.employer import CompanyIn, MatchingSettings, NeedIn, VacancyIn
+from app.services.matching import criteria_hash, vacancy_criteria
 from app.services.verification import reset_verification
 
 
 def _company_required() -> ConflictError:
     return ConflictError("Сначала заполните профиль компании", code="company_required")
+
+
+# Допустимые переходы статуса вакансии.
+VACANCY_TRANSITIONS: dict[VacancyStatus, set[VacancyStatus]] = {
+    VacancyStatus.DRAFT: {VacancyStatus.PUBLISHED, VacancyStatus.ARCHIVED},
+    VacancyStatus.PUBLISHED: {
+        VacancyStatus.DRAFT,
+        VacancyStatus.CLOSED,
+        VacancyStatus.ARCHIVED,
+    },
+    VacancyStatus.CLOSED: {VacancyStatus.PUBLISHED, VacancyStatus.ARCHIVED},
+    # Из архива — только восстановление в черновик.
+    VacancyStatus.ARCHIVED: {VacancyStatus.DRAFT},
+}
+BLOCKER_TITLES = {
+    "required_skills": "обязательные навыки",
+    "responsibilities": "обязанности",
+}
+
+
+def _ensure_publishable(vacancy: Vacancy) -> None:
+    blockers = vacancy.publish_blockers
+    if blockers:
+        raise AppError(
+            "Для публикации заполните: "
+            + ", ".join(BLOCKER_TITLES[b] for b in blockers),
+            code="vacancy_incomplete",
+            status_code=422,
+            details=[
+                {"field": b, "message": "Обязательно для публикации"} for b in blockers
+            ],
+        )
 
 
 class EmployerService:
@@ -166,14 +199,60 @@ class EmployerService:
             await self.session.delete(item)
             await self.session.commit()
 
+    async def set_vacancy_feedback(
+        self,
+        employer: Principal,
+        vacancy_id: uuid.UUID,
+        candidate_id: uuid.UUID,
+        verdict: str,
+        comment: str | None,
+    ) -> NeedFeedback:
+        """Отметка в подборке вакансии (меняет ранжирование при пересчёте)."""
+        await self.my_vacancy(employer, vacancy_id)
+        item = await self.session.scalar(
+            select(NeedFeedback).where(
+                NeedFeedback.vacancy_id == vacancy_id,
+                NeedFeedback.candidate_id == candidate_id,
+            )
+        )
+        if item is None:
+            item = NeedFeedback(vacancy_id=vacancy_id, candidate_id=candidate_id)
+            self.session.add(item)
+        item.verdict = verdict
+        item.comment = comment
+        await self.session.commit()
+        await self.session.refresh(item)
+        return item
+
+    async def delete_vacancy_feedback(
+        self, employer: Principal, vacancy_id: uuid.UUID, candidate_id: uuid.UUID
+    ) -> None:
+        await self.my_vacancy(employer, vacancy_id)
+        item = await self.session.scalar(
+            select(NeedFeedback).where(
+                NeedFeedback.vacancy_id == vacancy_id,
+                NeedFeedback.candidate_id == candidate_id,
+            )
+        )
+        if item is not None:
+            await self.session.delete(item)
+            await self.session.commit()
+
     # --- Вакансии ---
 
-    async def my_vacancies(self, employer: Principal) -> list[Vacancy]:
+    async def my_vacancies(
+        self, employer: Principal, status: VacancyStatus | None = None
+    ) -> list[Vacancy]:
+        """Вакансии работодателя; без фильтра — все, кроме архивных."""
+        query = select(Vacancy).where(Vacancy.owner_id == employer.id)
+        if status is None:
+            query = query.where(Vacancy.status != VacancyStatus.ARCHIVED)
+        else:
+            query = query.where(Vacancy.status == status)
         result = await self.session.scalars(
-            select(Vacancy)
-            .where(Vacancy.owner_id == employer.id)
-            .options(selectinload(Vacancy.company))
-            .order_by(Vacancy.created_at.desc())
+            query.options(selectinload(Vacancy.company)).order_by(
+                Vacancy.created_at.desc()
+            )
         )
         return list(result)
 
@@ -193,27 +272,104 @@ class EmployerService:
     async def save_vacancy(
         self, employer: Principal, data: VacancyIn, vacancy_id: uuid.UUID | None = None
     ) -> Vacancy:
-        if data.need_id is not None:
-            await self.need(employer, data.need_id)
+        need = await self.need(employer, data.need_id) if data.need_id else None
+        values = data.model_dump(mode="json", exclude={"matching"})
         if vacancy_id is None:
             company = await self.company_of(employer.id)
             if company is None:
                 raise _company_required()
             vacancy = Vacancy(owner_id=employer.id, company_id=company.id)
+            vacancy.company = company
             self.session.add(vacancy)
+            before = None
+            if need is not None:
+                values, settings = self._inherit_from_need(need, data, values)
+            else:
+                settings = (data.matching or MatchingSettings()).model_dump()
         else:
             vacancy = await self.my_vacancy(employer, vacancy_id)
-        for field, value in data.model_dump(mode="json").items():
+            if vacancy.status == VacancyStatus.ARCHIVED:
+                raise ConflictError(
+                    "Вакансия в архиве: восстановите её, чтобы изменить",
+                    code="vacancy_archived",
+                )
+            before = criteria_hash(vacancy_criteria(vacancy))
+            # Не переданы — прежние настройки подбора.
+            settings = data.matching.model_dump() if data.matching else vacancy.matching
+        for field, value in values.items():
             setattr(vacancy, field, value)
+        vacancy.matching_settings = settings
+        if vacancy.status == VacancyStatus.PUBLISHED:
+            # Опубликованная вакансия должна оставаться полной.
+            _ensure_publishable(vacancy)
+        if before is not None and criteria_hash(vacancy_criteria(vacancy)) != before:
+            # Требования изменились — сохранённая подборка устарела и будет
+            # пересчитана при следующем запросе.
+            vacancy.matching_version += 1
+        await self.session.flush()
+        if vacancy_id is None and need is not None:
+            await self._copy_feedback(need.id, vacancy.id)
         await self.session.commit()
         return await self.my_vacancy(employer, vacancy.id)
+
+    @staticmethod
+    def _inherit_from_need(
+        need: HiringNeed, data: VacancyIn, values: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Вакансия из потребности: пустые навыки и настройки подбора
+        берутся из неё (один раз — дальше у вакансии свои критерии)."""
+        if not data.required_skills and not data.optional_skills:
+            values["required_skills"] = list(need.required_skills)
+            values["optional_skills"] = list(need.optional_skills)
+        if data.matching is not None:
+            return values, data.matching.model_dump()
+        settings = MatchingSettings(
+            **{field: getattr(need, field) for field in MatchingSettings.model_fields}
+        )
+        return values, settings.model_dump()
+
+    async def _copy_feedback(self, need_id: uuid.UUID, vacancy_id: uuid.UUID) -> None:
+        """Отметки по кандидатам, сделанные в подборке потребности."""
+        for item in await self.session.scalars(
+            select(NeedFeedback).where(NeedFeedback.need_id == need_id)
+        ):
+            self.session.add(
+                NeedFeedback(
+                    vacancy_id=vacancy_id,
+                    candidate_id=item.candidate_id,
+                    verdict=item.verdict,
+                    comment=item.comment,
+                )
+            )
 
     async def set_vacancy_status(
         self, employer: Principal, vacancy_id: uuid.UUID, status: VacancyStatus
     ) -> Vacancy:
         vacancy = await self.my_vacancy(employer, vacancy_id)
-        if status == VacancyStatus.PUBLISHED and vacancy.published_at is None:
-            vacancy.published_at = datetime.now(UTC)
+        current = VacancyStatus(vacancy.status)
+        if status == current:
+            return vacancy
+        if status not in VACANCY_TRANSITIONS[current]:
+            raise ConflictError(
+                "Такой переход статуса невозможен"
+                + (
+                    ": восстановите вакансию из архива в черновик"
+                    if current == VacancyStatus.ARCHIVED
+                    else ""
+                ),
+                code=f"vacancy_{current}",
+            )
+        now = datetime.now(UTC)
+        if status == VacancyStatus.PUBLISHED:
+            _ensure_publishable(vacancy)
+            vacancy.published_at = vacancy.published_at or now
+            vacancy.closed_at = None
+        elif status == VacancyStatus.CLOSED:
+            vacancy.closed_at = now
+        elif status == VacancyStatus.ARCHIVED:
+            vacancy.archived_at = now
+        if current == VacancyStatus.ARCHIVED:
+            vacancy.archived_at = None
         vacancy.status = status
         await self.session.commit()
         return await self.my_vacancy(employer, vacancy.id)
@@ -232,6 +388,7 @@ class EmployerService:
         skill: str | None,
         q: str | None,
         salary_min: int | None,
+        salary_type: str | None,
         work_format: str | None,
         city: str | None,
         company_id: uuid.UUID | None,
@@ -247,7 +404,12 @@ class EmployerService:
         if grade:
             query = query.where(Vacancy.grade == grade)
         if skill:
-            query = query.where(Vacancy.skills.contains([skill]))
+            query = query.where(
+                or_(
+                    Vacancy.required_skills.contains([skill]),
+                    Vacancy.optional_skills.contains([skill]),
+                )
+            )
         if q:
             # %, _ и \ в запросе — обычные символы, а не шаблон LIKE.
             escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -263,6 +425,8 @@ class EmployerService:
             query = query.where(
                 or_(Vacancy.salary_to.is_(None), Vacancy.salary_to >= salary_min)
             )
+        if salary_type:
+            query = query.where(Vacancy.salary_type == salary_type)
         if work_format:
             query = query.where(Vacancy.work_format == work_format)
         if city:

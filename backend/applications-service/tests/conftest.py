@@ -93,6 +93,7 @@ class FakeEmployers:
             "salary_from": 250000,
             "salary_to": 350000,
             "currency": "RUB",
+            "salary_type": "gross",
             "work_format": "remote",
             "city": "Москва",
         }

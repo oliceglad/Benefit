@@ -588,8 +588,14 @@ class Smoke:
                     "description": "Архитектура платёжных сервисов.",
                     "specialization": "backend",
                     "grade": "senior",
-                    "skills": ["Python", "Kafka"],
+                    "required_skills": ["Python", "Kafka"],
+                    "optional_skills": ["Kubernetes"],
+                    "responsibilities": [
+                        "Проектировать платёжные сервисы",
+                        "Менторить команду",
+                    ],
                     "salary_from": 400000,
+                    "salary_type": "net",
                 },
                 headers=employer,
             ),
@@ -601,6 +607,38 @@ class Smoke:
                 json={"status": "published"},
                 headers=employer,
             )
+        )
+        vacancy_matches = f"/api/v1/employers/vacancies/{vacancy['id']}/matches"
+        first = self.check(self.http.get(vacancy_matches, headers=employer))
+        assert (first["recalculated"], first["matching_version"]) == ("initial", 1)
+        # Требования изменились (Kafka → желательный навык, грейд middle):
+        # сервер помечает подборку устаревшей и пересчитывает её.
+        changed = self.check(
+            self.http.put(
+                f"/api/v1/employers/vacancies/{vacancy['id']}",
+                json={
+                    "title": "Senior Python Developer",
+                    "description": "Архитектура платёжных сервисов.",
+                    "specialization": "backend",
+                    "grade": "middle",
+                    "required_skills": ["Python"],
+                    "optional_skills": ["Kafka", "Kubernetes"],
+                    "responsibilities": ["Проектировать платёжные сервисы"],
+                    "salary_from": 400000,
+                    "salary_type": "net",
+                },
+                headers=employer,
+            )
+        )
+        assert changed["matching_state"]["requirements_changed"] is True
+        second = self.check(self.http.get(vacancy_matches, headers=employer))
+        assert (second["recalculated"], second["matching_version"]) == ("criteria", 2)
+        assert candidate_id in [
+            c["candidate"]["user_id"] for c in second["candidates"]
+        ] + second["changes"]["added"]
+        self.ok(
+            "подбор по вакансии: после изменения требований пересчитан "
+            f"(было {first['total']}, стало {second['total']})"
         )
         listed = self.check(
             self.http.get(

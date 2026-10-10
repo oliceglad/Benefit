@@ -37,6 +37,8 @@ class ApplicationResponse(BaseModel):
     salary_from: int | None
     salary_to: int | None
     currency: str
+    # gross — до вычета НДФЛ, net — на руки.
+    salary_type: Literal["gross", "net"]
     cover_letter: str | None
     status: ApplicationStatus
     employer_message: str | None

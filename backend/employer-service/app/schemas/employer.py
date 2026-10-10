@@ -30,6 +30,7 @@ from app.models import (
     CompanySize,
     FeedbackVerdict,
     NeedStatus,
+    SalaryType,
     VacancyStatus,
     VerificationStatus,
 )
@@ -262,23 +263,73 @@ class NeedStatusUpdate(BaseModel):
 # --- Вакансия ---------------------------------------------------------------------
 
 
+class MatchingSettings(BaseModel):
+    """Жёсткие требования подбора: кандидаты, не прошедшие их, в подборку
+    не попадают (остальные требования влияют на порядок)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    require_confirmed_grade: bool = False
+    strict_skills: bool = Field(
+        default=False, description="Все обязательные навыки (близкие не в счёт)"
+    )
+    grade_tolerance: int = Field(
+        default=1, ge=0, le=4, description="Допустимое отклонение грейда, ступеней"
+    )
+    min_experience_months: int | None = Field(default=None, ge=0, le=600)
+    hard_budget: bool = Field(
+        default=False, description="Исключать ожидания выше salary_to"
+    )
+    strict_format: bool = Field(
+        default=False, description="Исключать кандидатов с другим форматом работы"
+    )
+
+
+Responsibility = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+]
+
+
 class VacancyIn(SalaryRange):
+    """Вакансия. Черновик можно сохранить неполным; для публикации нужны
+    хотя бы один обязательный навык и одна обязанность."""
+
     model_config = ConfigDict(extra="forbid")
 
     title: Name
+    # Общее описание: о команде, продукте, задачах.
     description: LongText
     specialization: ITRole
     grade: Grade
-    skills: list[SkillName] = Field(default_factory=list, max_length=30)
+    required_skills: list[SkillName] = Field(default_factory=list, max_length=30)
+    optional_skills: list[SkillName] = Field(default_factory=list, max_length=30)
+    responsibilities: list[Responsibility] = Field(default_factory=list, max_length=30)
+    # gross — до вычета НДФЛ, net — на руки.
+    salary_type: SalaryType = SalaryType.GROSS
     work_format: WorkFormat | None = None
     employment_type: EmploymentType | None = None
     city: _str(100) | None = None
+    # Потребность-шаблон: при создании вакансии из неё копируются пустые
+    # навыки, настройки подбора и отметки по кандидатам. Дальше вакансия
+    # живёт своими критериями — правка потребности на неё не влияет.
     need_id: uuid.UUID | None = None
+    # Не указано — из потребности (при создании) или прежние настройки.
+    matching: MatchingSettings | None = None
 
-    @field_validator("skills")
+    @field_validator("required_skills", "optional_skills")
     @classmethod
     def _unique(cls, value: list[str]) -> list[str]:
         return _unique_skills(value)
+
+    @model_validator(mode="after")
+    def _skills_do_not_overlap(self) -> Self:
+        required = {s.lower() for s in self.required_skills}
+        both = [s for s in self.optional_skills if s.lower() in required]
+        if both:
+            raise ValueError(
+                "Навык указан и как обязательный, и как желательный: " + ", ".join(both)
+            )
+        return self
 
 
 class CompanyBrief(BaseModel):
@@ -307,11 +358,58 @@ class VacancyResponse(VacancyIn):
     owner_id: uuid.UUID
     status: VacancyStatus
     published_at: datetime | None
+    closed_at: datetime | None
+    archived_at: datetime | None
+    # Чего не хватает для публикации: required_skills, responsibilities.
+    publish_blockers: list[str]
+    matching: MatchingSettings
+    matching_state: "MatchingState"
     created_at: datetime
     updated_at: datetime
 
 
+class MatchingState(BaseModel):
+    """Актуальность подбора: ``version`` растёт при изменении требований;
+    ``requirements_changed`` — показанная подборка устарела, её нужно
+    запросить заново (сервер пересчитает)."""
+
+    version: int
+    computed_version: int | None
+    computed_at: datetime | None
+    requirements_changed: bool
+
+
+class MatchChanges(BaseModel):
+    """Что изменилось в подборке после изменения требований."""
+
+    from_version: int
+    to_version: int
+    added: list[uuid.UUID]
+    removed: list[uuid.UUID]
+
+
+class VacancyMatchResponse(BaseModel):
+    """Подборка кандидатов по вакансии."""
+
+    vacancy_id: uuid.UUID
+    matching_version: int
+    computed_at: datetime
+    # Пересчитана в этом запросе и почему: initial, criteria, feedback,
+    # refresh, expired; null — отдана сохранённая подборка.
+    recalculated: str | None
+    changes: MatchChanges | None
+    total: int
+    categories: list[dict[str, Any]]
+    candidates: list[dict[str, Any]]
+    excluded: dict[str, int] = Field(default_factory=dict)
+    suggestions: list[dict[str, Any]] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+
+
 class VacancyStatusUpdate(BaseModel):
+    """Смена статуса: опубликовать, снять в черновик, закрыть набор,
+    перенести в архив или восстановить из архива (в черновик)."""
+
     status: VacancyStatus
 
 
@@ -348,3 +446,6 @@ class MatchResponse(BaseModel):
     excluded: dict[str, int] = Field(default_factory=dict)
     suggestions: list[dict[str, Any]] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
+
+
+VacancyResponse.model_rebuild()

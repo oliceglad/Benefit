@@ -11,7 +11,14 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -58,9 +65,26 @@ class NeedStatus(StrEnum):
 
 
 class VacancyStatus(StrEnum):
+    """Жизненный цикл вакансии.
+
+    * ``draft`` — черновик, кандидаты не видят;
+    * ``published`` — в каталоге, на неё откликаются;
+    * ``closed`` — набор закрыт (можно открыть снова);
+    * ``archived`` — в архиве: скрыта из списков, не редактируется,
+      восстанавливается в черновик.
+    """
+
     DRAFT = "draft"
     PUBLISHED = "published"
     CLOSED = "closed"
+    ARCHIVED = "archived"
+
+
+class SalaryType(StrEnum):
+    """Налоговый режим зарплаты."""
+
+    GROSS = "gross"  # до вычета НДФЛ
+    NET = "net"  # на руки
 
 
 def _json_list() -> Any:
@@ -160,14 +184,22 @@ class FeedbackVerdict(StrEnum):
 
 
 class NeedFeedback(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Отметка работодателя по кандидату в подборке: «подходит» поднимает
-    похожих кандидатов, «не подходит» убирает кандидата и опускает похожих."""
+    """Отметка работодателя по кандидату в подборке потребности или вакансии:
+    «подходит» поднимает похожих кандидатов, «не подходит» убирает кандидата
+    и опускает похожих."""
 
     __tablename__ = "need_feedback"
-    __table_args__ = (UniqueConstraint("need_id", "candidate_id"),)
+    __table_args__ = (
+        UniqueConstraint("need_id", "candidate_id"),
+        UniqueConstraint("vacancy_id", "candidate_id"),
+        CheckConstraint("num_nonnulls(need_id, vacancy_id) = 1", name="one_target"),
+    )
 
-    need_id: Mapped[uuid.UUID] = mapped_column(
+    need_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("hiring_needs.id", ondelete="CASCADE"), index=True
+    )
+    vacancy_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("vacancies.id", ondelete="CASCADE"), index=True
     )
     candidate_id: Mapped[uuid.UUID]
     verdict: Mapped[str] = mapped_column(String(16))
@@ -188,17 +220,88 @@ class Vacancy(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     description: Mapped[str] = mapped_column(Text)
     specialization: Mapped[str] = mapped_column(String(32), index=True)
     grade: Mapped[str] = mapped_column(String(16))
-    skills: Mapped[list[str]] = _json_list()
+    required_skills: Mapped[list[str]] = _json_list()
+    optional_skills: Mapped[list[str]] = _json_list()
+    # Обязанности — отдельными пунктами.
+    responsibilities: Mapped[list[str]] = _json_list()
     salary_from: Mapped[int | None]
     salary_to: Mapped[int | None]
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
+    salary_type: Mapped[str] = mapped_column(
+        String(8), default=SalaryType.GROSS, server_default=SalaryType.GROSS.value
+    )
     work_format: Mapped[str | None] = mapped_column(String(16))
     employment_type: Mapped[str | None] = mapped_column(String(16))
     city: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(16), default=VacancyStatus.DRAFT)
+    # Первая публикация (дата для каталога).
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Настройки подбора (жёсткие фильтры): см. schemas.MatchingSettings.
+    matching_settings: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, default=dict, server_default="{}"
+    )
+    # Растёт при каждом изменении требований, влияющих на подбор.
+    matching_version: Mapped[int] = mapped_column(default=1, server_default="1")
+
+    match_snapshot: Mapped["VacancyMatchSnapshot | None"] = relationship(
+        lazy="selectin", viewonly=True
+    )
+
+    @property
+    def matching(self) -> dict[str, Any]:
+        return self.matching_settings or {}
+
+    @property
+    def matching_state(self) -> dict[str, Any]:
+        """Актуальность сохранённой подборки для фронтенда."""
+        snapshot = self.match_snapshot
+        return {
+            "version": self.matching_version,
+            "computed_version": snapshot.version if snapshot else None,
+            "computed_at": snapshot.computed_at if snapshot else None,
+            # Требования изменились после последнего подбора: список,
+            # который видел работодатель, устарел.
+            "requirements_changed": snapshot is not None
+            and snapshot.version != self.matching_version,
+        }
+
+    @property
+    def publish_blockers(self) -> list[str]:
+        """Чего не хватает для публикации (коды полей)."""
+        blockers = []
+        if not self.required_skills:
+            blockers.append("required_skills")
+        if not self.responsibilities:
+            blockers.append("responsibilities")
+        return blockers
 
     company: Mapped[Company] = relationship()
+
+
+class VacancyMatchSnapshot(Base):
+    """Последний подбор кандидатов по вакансии.
+
+    Хранит до 100 лучших кандидатов, хэш критериев, по которым они подобраны,
+    и разницу с предыдущим подбором после изменения требований.
+    """
+
+    __tablename__ = "vacancy_match_snapshots"
+
+    vacancy_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("vacancies.id", ondelete="CASCADE"), primary_key=True
+    )
+    # Версия требований вакансии, для которой посчитан подбор.
+    version: Mapped[int]
+    criteria_hash: Mapped[str] = mapped_column(String(64))
+    feedback_hash: Mapped[str] = mapped_column(String(64))
+    # Почему пересчитан: initial, criteria, feedback, refresh, expired.
+    reason: Mapped[str] = mapped_column(String(16))
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    result: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    # После изменения требований: {from_version, to_version, added, removed}.
+    changes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
 
 __all__ = [
@@ -210,6 +313,8 @@ __all__ = [
     "NeedFeedback",
     "HiringNeed",
     "NeedStatus",
+    "SalaryType",
     "Vacancy",
+    "VacancyMatchSnapshot",
     "VacancyStatus",
 ]

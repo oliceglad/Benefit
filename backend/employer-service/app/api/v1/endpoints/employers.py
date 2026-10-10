@@ -13,9 +13,10 @@ from app.api.deps import (
     EmployerServiceDep,
     MatcherDep,
     SessionDep,
+    VacancyMatcherDep,
     VerifierDep,
 )
-from app.models import Company, VerificationStatus
+from app.models import Company, VacancyStatus, VerificationStatus
 from app.schemas.employer import (
     CompanyIn,
     CompanyResponse,
@@ -27,6 +28,7 @@ from app.schemas.employer import (
     NeedStatusUpdate,
     PublicCompanyResponse,
     VacancyIn,
+    VacancyMatchResponse,
     VacancyResponse,
     VacancyStatusUpdate,
     VerificationDecision,
@@ -261,9 +263,16 @@ async def delete_feedback(
 
 
 @router.get("/vacancies", response_model=list[VacancyResponse], tags=["вакансии"])
-async def my_vacancies(employer: Employer, service: EmployerServiceDep) -> list:
+async def my_vacancies(
+    employer: Employer,
+    service: EmployerServiceDep,
+    status: VacancyStatus | None = None,
+) -> list:
+    """Свои вакансии. Без ``status`` — все, кроме архива;
+    ``?status=archived`` — архив."""
     return [
-        VacancyResponse.model_validate(v) for v in await service.my_vacancies(employer)
+        VacancyResponse.model_validate(v)
+        for v in await service.my_vacancies(employer, status)
     ]
 
 
@@ -314,7 +323,105 @@ async def set_vacancy_status(
     employer: Employer,
     service: EmployerServiceDep,
 ) -> VacancyResponse:
-    """Опубликовать, снять в черновик или закрыть вакансию."""
+    """Смена статуса вакансии.
+
+    ``draft → published`` (нужны обязательные навыки и обязанности, иначе 422
+    ``vacancy_incomplete``), ``published → closed`` (набор закрыт),
+    ``closed → published`` (открыть снова), ``* → archived`` (в архив),
+    ``archived → draft`` (восстановить).
+    """
     return VacancyResponse.model_validate(
         await service.set_vacancy_status(employer, vacancy_id, data.status)
     )
+
+
+# --- Подборка по вакансии ---
+
+
+@router.get(
+    "/vacancies/{vacancy_id}/matches",
+    response_model=VacancyMatchResponse,
+    tags=["вакансии"],
+)
+async def vacancy_matches(
+    vacancy_id: uuid.UUID,
+    employer: Employer,
+    service: EmployerServiceDep,
+    matcher: VacancyMatcherDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    hide_contacted: Annotated[
+        bool, Query(description="Скрыть кандидатов, с которыми уже был контакт")
+    ] = False,
+    refresh: Annotated[
+        bool, Query(description="Пересчитать, не дожидаясь устаревания")
+    ] = False,
+) -> VacancyMatchResponse:
+    """Подборка кандидатов по требованиям вакансии.
+
+    Сервер хранит подборку и пересчитывает её, когда изменились требования
+    вакансии (``matching_version`` растёт, ``changes`` — кто добавился и кто
+    выпал), отметки «подходит / не подходит», или подборка старше 30 минут.
+    Контакты с кандидатами учитываются при каждом запросе.
+    """
+    vacancy = await service.my_vacancy(employer, vacancy_id)
+    result = await matcher.matches(
+        vacancy,
+        limit=limit,
+        offset=offset,
+        hide_contacted=hide_contacted,
+        refresh=refresh,
+    )
+    return VacancyMatchResponse(**result)
+
+
+@router.get(
+    "/vacancies/{vacancy_id}/feedback",
+    response_model=list[FeedbackResponse],
+    tags=["вакансии"],
+)
+async def list_vacancy_feedback(
+    vacancy_id: uuid.UUID,
+    employer: Employer,
+    service: EmployerServiceDep,
+    matcher: VacancyMatcherDep,
+) -> list:
+    await service.my_vacancy(employer, vacancy_id)
+    return [
+        FeedbackResponse.model_validate(f) for f in await matcher.feedback(vacancy_id)
+    ]
+
+
+@router.put(
+    "/vacancies/{vacancy_id}/feedback/{candidate_id}",
+    response_model=FeedbackResponse,
+    tags=["вакансии"],
+)
+async def set_vacancy_feedback(
+    vacancy_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    data: FeedbackIn,
+    employer: Employer,
+    service: EmployerServiceDep,
+) -> FeedbackResponse:
+    """«Подходит» / «не подходит» в подборке вакансии: подборка будет
+    пересчитана с учётом отметки."""
+    return FeedbackResponse.model_validate(
+        await service.set_vacancy_feedback(
+            employer, vacancy_id, candidate_id, data.verdict, data.comment
+        )
+    )
+
+
+@router.delete(
+    "/vacancies/{vacancy_id}/feedback/{candidate_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["вакансии"],
+)
+async def delete_vacancy_feedback(
+    vacancy_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    employer: Employer,
+    service: EmployerServiceDep,
+) -> None:
+    await service.delete_vacancy_feedback(employer, vacancy_id, candidate_id)

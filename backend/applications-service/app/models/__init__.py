@@ -54,6 +54,10 @@ class Invitation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     salary_from: Mapped[int | None] = mapped_column(Integer)
     salary_to: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
+    # gross — до вычета НДФЛ, net — на руки.
+    salary_type: Mapped[str] = mapped_column(
+        String(8), default="gross", server_default="gross"
+    )
     work_format: Mapped[str | None] = mapped_column(String(16))
     city: Mapped[str | None] = mapped_column(String(100))
     message: Mapped[str | None] = mapped_column(Text)
@@ -90,6 +94,10 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     salary_from: Mapped[int | None] = mapped_column(Integer)
     salary_to: Mapped[int | None] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="RUB")
+    # gross — до вычета НДФЛ, net — на руки.
+    salary_type: Mapped[str] = mapped_column(
+        String(8), default="gross", server_default="gross"
+    )
     cover_letter: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(16), default=ApplicationStatus.NEW)
     # Комментарий работодателя к последней смене статуса.

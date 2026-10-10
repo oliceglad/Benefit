@@ -262,3 +262,24 @@ async def test_invitation_links_company_profile(
     employers.companies.clear()  # нет профиля компании — ссылки нет
     other = (await invite(client, employer, published(candidates))).json()
     assert other["company_id"] is None
+
+
+async def test_salary_tax_mode_is_shown(
+    client: AsyncClient, candidates: Any, employers: Any
+) -> None:
+    employer, candidate = TestUser("employer"), published(candidates)
+
+    invitation = (await invite(client, employer, candidate, salary_type="net")).json()
+
+    assert invitation["vacancy"]["salary_type"] == "net"
+    [note] = await notifications()
+    assert "200 000 – 300 000 ₽ на руки" in note["body"]
+
+    vacancy_id = employers.vacancy_of(employer.id)
+    employers.vacancies[vacancy_id]["salary_type"] = "net"
+    application = await client.post(
+        "/api/v1/applications",
+        json={"vacancy_id": str(vacancy_id)},
+        headers=candidate.headers,
+    )
+    assert application.json()["salary_type"] == "net"

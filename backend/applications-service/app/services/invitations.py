@@ -45,12 +45,13 @@ def format_salary(invitation: Invitation) -> str:
         return f"{value:,}".replace(",", " ")
 
     low, high = invitation.salary_from, invitation.salary_to
+    tax = " на руки" if invitation.salary_type == "net" else " до вычета налогов"
     if low and high:
-        return f"{money(low)} – {money(high)} {sign}"
+        return f"{money(low)} – {money(high)} {sign}{tax}"
     if low:
-        return f"от {money(low)} {sign}"
+        return f"от {money(low)} {sign}{tax}"
     if high:
-        return f"до {money(high)} {sign}"
+        return f"до {money(high)} {sign}{tax}"
     return "по договорённости"
 
 
@@ -68,6 +69,7 @@ def to_response(invitation: Invitation) -> InvitationResponse:
             salary_from=invitation.salary_from,
             salary_to=invitation.salary_to,
             currency=invitation.currency,
+            salary_type=invitation.salary_type,
             work_format=invitation.work_format,
             city=invitation.city,
         ),
@@ -135,6 +137,7 @@ class InvitationService:
             salary_from=offer.salary_from,
             salary_to=offer.salary_to,
             currency=offer.currency,
+            salary_type=offer.salary_type,
             work_format=offer.work_format,
             city=offer.city,
             message=data.message,
@@ -190,6 +193,7 @@ class InvitationService:
                 "salary_from": vacancy["salary_from"],
                 "salary_to": vacancy["salary_to"],
                 "currency": vacancy["currency"],
+                "salary_type": vacancy.get("salary_type", "gross"),
                 "work_format": vacancy["work_format"],
                 "city": vacancy["city"],
             } | values

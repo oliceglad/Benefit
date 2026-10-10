@@ -7,7 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.services.employers import EmployerService
-from app.services.matching import ContactDirectory, Matcher, get_contacts, get_matcher
+from app.services.matching import (
+    ContactDirectory,
+    Matcher,
+    VacancyMatcher,
+    get_contacts,
+    get_matcher,
+)
 from app.services.registry import CompanyRegistry, get_registry
 from app.services.verification import CompanyVerifier
 from app.services.website import WebsiteChecker, get_website_checker
@@ -33,3 +39,14 @@ def get_verifier(
 VerifierDep = Annotated[CompanyVerifier, Depends(get_verifier)]
 MatcherDep = Annotated[Matcher, Depends(get_matcher)]
 ContactsDep = Annotated[ContactDirectory, Depends(get_contacts)]
+
+
+def get_vacancy_matcher(
+    session: SessionDep,
+    matcher: Annotated[Matcher, Depends(get_matcher)],
+    contacts: Annotated[ContactDirectory, Depends(get_contacts)],
+) -> VacancyMatcher:
+    return VacancyMatcher(session, matcher, contacts)
+
+
+VacancyMatcherDep = Annotated[VacancyMatcher, Depends(get_vacancy_matcher)]

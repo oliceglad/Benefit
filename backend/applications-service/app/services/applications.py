@@ -80,6 +80,7 @@ class ApplicationService:
             salary_from=vacancy["salary_from"],
             salary_to=vacancy["salary_to"],
             currency=vacancy["currency"],
+            salary_type=vacancy.get("salary_type", "gross"),
             cover_letter=data.cover_letter,
             status=ApplicationStatus.NEW,
         )

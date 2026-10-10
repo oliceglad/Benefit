@@ -9,6 +9,7 @@ from benefit_common.skills import normalize_skill
 from fastapi import APIRouter, Query
 
 from app.api.deps import EmployerServiceDep
+from app.models import SalaryType
 from app.schemas.employer import VacancyPage, VacancyResponse
 
 router = APIRouter(tags=["вакансии: каталог"])
@@ -23,6 +24,7 @@ async def list_vacancies(
     skill: Annotated[str | None, Query(max_length=64)] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     salary_min: Annotated[int | None, Query(ge=0)] = None,
+    salary_type: SalaryType | None = None,
     work_format: WorkFormat | None = None,
     city: Annotated[str | None, Query(max_length=100)] = None,
     company_id: uuid.UUID | None = None,
@@ -35,6 +37,7 @@ async def list_vacancies(
         skill=normalize_skill(skill) if skill else None,
         q=q,
         salary_min=salary_min,
+        salary_type=salary_type,
         work_format=work_format,
         city=city,
         company_id=company_id,

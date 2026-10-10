@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
@@ -13,6 +13,8 @@ from pydantic import (
 )
 
 from app.models import InvitationStatus
+
+SalaryType = Literal["gross", "net"]
 
 Text200 = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
@@ -35,6 +37,8 @@ class Vacancy(BaseModel):
     salary_from: int | None = Field(default=None, ge=0, le=100_000_000)
     salary_to: int | None = Field(default=None, ge=0, le=100_000_000)
     currency: str = Field(default="RUB", pattern=r"^[A-Z]{3}$")
+    # gross — до вычета НДФЛ, net — на руки.
+    salary_type: SalaryType = "gross"
     work_format: str | None = Field(default=None, pattern=r"^(office|remote|hybrid)$")
     city: str | None = Field(default=None, max_length=100)
 
@@ -54,6 +58,7 @@ class Offer(BaseModel):
     salary_from: int | None = Field(default=None, ge=0, le=100_000_000)
     salary_to: int | None = Field(default=None, ge=0, le=100_000_000)
     currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    salary_type: SalaryType | None = None
     work_format: str | None = Field(default=None, pattern=r"^(office|remote|hybrid)$")
     city: str | None = Field(default=None, max_length=100)
 

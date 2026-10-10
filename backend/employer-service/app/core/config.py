@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     verification_recheck_days: int = 30
     verification_recheck_enabled: bool = True
 
+    # Подборка по вакансии хранится и пересчитывается не реже чем раз в
+    # столько минут (кандидаты обновляют профили).
+    match_snapshot_ttl_minutes: int = 30
+
     @computed_field
     @property
     def database_url(self) -> URL:
