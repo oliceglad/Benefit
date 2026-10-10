@@ -48,11 +48,16 @@ services:
   # --- API-шлюз: единственная точка входа снаружи -------------------------
   gateway:
     <<: *service-defaults
+    # Имена образов: локально — benefit-<сервис>:latest (как по умолчанию у
+    # compose); на сервере — готовые образы из GHCR, собранные в CI.
+    image: ${IMAGE_PREFIX:-benefit}-gateway:${IMAGE_TAG:-latest}
     build:
       context: ./backend/gateway
     ports:
-      # Единственный порт, доступный извне. Базы данных, Mailpit, Keycloak
-      # и mock ФСП ID опубликованы только на 127.0.0.1 (для разработки).
+      # Снаружи доступны только шлюз и фронтенд (он проксирует API сюда же).
+      # Базы данных, Mailpit, Keycloak и mock ФСП ID опубликованы только на
+      # 127.0.0.1 (для разработки). На сервере шлюз тоже только на 127.0.0.1:
+      # GATEWAY_PORT=127.0.0.1:8000, весь трафик идёт через фронтенд.
       - "${GATEWAY_PORT:-8000}:80"
     depends_on:
       core:
@@ -79,9 +84,9 @@ services:
     <<: *postgres
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-benefit}
+      POSTGRES_USER: ${POSTGRES_USER:-benefit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benefit}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -89,11 +94,14 @@ services:
 
   core:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-core:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: core/Dockerfile
+    # Необязателен: в CI (сборка и публикация образов) .env нет.
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       <<: *common-env
       POSTGRES_HOST: db
@@ -119,6 +127,7 @@ services:
 
   auth-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-auth-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: auth-service/Dockerfile
@@ -183,6 +192,7 @@ services:
 
   candidate-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-candidate-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: candidate-service/Dockerfile
@@ -219,6 +229,7 @@ services:
 
   assessment-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-assessment-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: assessment-service/Dockerfile
@@ -258,6 +269,7 @@ services:
 
   applications-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-applications-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: applications-service/Dockerfile
@@ -293,6 +305,7 @@ services:
 
   employer-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-employer-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: employer-service/Dockerfile
@@ -326,6 +339,7 @@ services:
 
   matching-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-matching-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: matching-service/Dockerfile
@@ -359,6 +373,7 @@ services:
 
   chat-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-chat-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: chat-service/Dockerfile
@@ -397,6 +412,7 @@ services:
 
   notification-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-notification-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: notification-service/Dockerfile
@@ -419,6 +435,7 @@ services:
 
   mail-service:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-mail-service:${IMAGE_TAG:-latest}
     build:
       context: ./backend
       dockerfile: mail-service/Dockerfile
@@ -437,15 +454,21 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)"]
 
   # Тестовый SMTP-сервер: все письма видны в веб-интерфейсе.
+  # Служебные интерфейсы (Mailpit, Grafana, Prometheus, Alertmanager) живут на
+  # подпутях: так их проксирует фронтенд (http://<сервер>/mailpit/ и т.д.),
+  # локально — те же пути на своих портах.
   mailpit:
     <<: *service-defaults
     image: axllent/mailpit:latest
+    environment:
+      MP_WEBROOT: /mailpit/
     ports:
       - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
 
   # --- Внешние провайдеры --------------------------------------------------
   fsp-id-mock:
     <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-fsp-id-mock:${IMAGE_TAG:-latest}
     build:
       context: ./backend/fsp-id-mock
     environment:
@@ -481,6 +504,9 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
       - --web.enable-lifecycle
+      # Ссылки (в том числе в алертах) — на публичный адрес через фронтенд.
+      - --web.external-url=${FRONTEND_URL:-http://localhost:3000}/prometheus/
+      - --web.route-prefix=/prometheus/
     volumes:
       - ./backend/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./backend/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -488,16 +514,18 @@ services:
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/prometheus/-/ready"]
       <<: *healthcheck
 
-  # Алерты уходят письмом (по умолчанию — в Mailpit, http://localhost:8025).
+  # Алерты уходят письмом (по умолчанию — в Mailpit, http://localhost:8025/mailpit/).
   alertmanager:
     <<: *service-defaults
     image: prom/alertmanager:v0.28.1
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
+      - --web.external-url=${FRONTEND_URL:-http://localhost:3000}/alertmanager/
+      - --web.route-prefix=/alertmanager/
     configs:
       - source: alertmanager
         target: /etc/alertmanager/alertmanager.yml
@@ -516,6 +544,8 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/benefit-services.json
+      GF_SERVER_ROOT_URL: ${FRONTEND_URL:-http://localhost:3000}/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - ./backend/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./backend/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
@@ -544,20 +574,27 @@ services:
     depends_on:
       - gateway
 
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - gateway
+  # --- Фронтенд: SPA + прокси API на шлюз (тот же origin) -----------------
+  frontend:
+    <<: *service-defaults
+    image: ${IMAGE_PREFIX:-benefit}-frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+      args:
+        VITE_LEGAL_OPERATOR_NAME: ${VITE_LEGAL_OPERATOR_NAME:-}
+        VITE_LEGAL_OPERATOR_ADDRESS: ${VITE_LEGAL_OPERATOR_ADDRESS:-}
+        VITE_LEGAL_CONTACT_EMAIL: ${VITE_LEGAL_CONTACT_EMAIL:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - gateway
 
 configs:
   # Пароли баз подставляются из .env (те же, что у сервисов).
   postgres_exporter:
     content: |
       auth_modules:
-        core: {type: userpass, userpass: {username: "${POSTGRES_USER}", password: "${POSTGRES_PASSWORD}"}, options: {sslmode: disable}}
+        core: {type: userpass, userpass: {username: "${POSTGRES_USER:-benefit}", password: "${POSTGRES_PASSWORD:-benefit}"}, options: {sslmode: disable}}
         auth: {type: userpass, userpass: {username: "${AUTH_DB_USER:-auth}", password: "${AUTH_DB_PASSWORD:-auth}"}, options: {sslmode: disable}}
         candidate: {type: userpass, userpass: {username: "${CANDIDATE_DB_USER:-candidates}", password: "${CANDIDATE_DB_PASSWORD:-candidates}"}, options: {sslmode: disable}}
         assessment: {type: userpass, userpass: {username: "${ASSESSMENT_DB_USER:-assessments}", password: "${ASSESSMENT_DB_PASSWORD:-assessments}"}, options: {sslmode: disable}}

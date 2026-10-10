@@ -10,7 +10,8 @@ rule_files:
 
 alerting:
   alertmanagers:
-    - static_configs:
+    - path_prefix: /alertmanager
+      static_configs:
         - targets: ["alertmanager:9093"]
 
 scrape_configs:
@@ -80,12 +81,14 @@ scrape_configs:
         replacement: infra
 
   - job_name: prometheus
+    metrics_path: /prometheus/metrics
     static_configs:
       - targets: ["localhost:9090"]
         labels:
           tier: infra
 
   - job_name: alertmanager
+    metrics_path: /alertmanager/metrics
     static_configs:
       - targets: ["alertmanager:9093"]
         labels:

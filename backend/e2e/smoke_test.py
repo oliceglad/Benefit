@@ -26,7 +26,7 @@ from typing import Any
 import httpx
 from httpx_ws import connect_ws
 
-MAILPIT = "http://localhost:8025"
+MAILPIT = "http://localhost:8025/mailpit"
 
 
 class Smoke:
