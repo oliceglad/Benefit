@@ -38,11 +38,14 @@ x-service-urls: &service-urls
   APPLICATIONS_SERVICE_URL: http://applications-service:8000
   ASSESSMENT_SERVICE_URL: http://assessment-service:8000
 
+# start_period — запас на старт (миграции, импорт) на медленном сервере: в это
+# время неудачные проверки не считаются, а healthy ставится сразу, как только
+# проверка прошла, — локально запуск не замедляется.
 x-healthcheck: &healthcheck
   interval: 10s
-  timeout: 5s
+  timeout: 10s
   retries: 12
-  start_period: 20s
+  start_period: 180s
 
 services:
   # --- API-шлюз: единственная точка входа снаружи -------------------------
