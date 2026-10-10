@@ -84,9 +84,9 @@ services:
     <<: *postgres
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-benefit}
+      POSTGRES_USER: ${POSTGRES_USER:-benefit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benefit}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -98,8 +98,10 @@ services:
     build:
       context: ./backend
       dockerfile: core/Dockerfile
+    # Необязателен: в CI (сборка и публикация образов) .env нет.
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       <<: *common-env
       POSTGRES_HOST: db
@@ -580,7 +582,7 @@ configs:
   postgres_exporter:
     content: |
       auth_modules:
-        core: {type: userpass, userpass: {username: "${POSTGRES_USER}", password: "${POSTGRES_PASSWORD}"}, options: {sslmode: disable}}
+        core: {type: userpass, userpass: {username: "${POSTGRES_USER:-benefit}", password: "${POSTGRES_PASSWORD:-benefit}"}, options: {sslmode: disable}}
         auth: {type: userpass, userpass: {username: "${AUTH_DB_USER:-auth}", password: "${AUTH_DB_PASSWORD:-auth}"}, options: {sslmode: disable}}
         candidate: {type: userpass, userpass: {username: "${CANDIDATE_DB_USER:-candidates}", password: "${CANDIDATE_DB_PASSWORD:-candidates}"}, options: {sslmode: disable}}
         assessment: {type: userpass, userpass: {username: "${ASSESSMENT_DB_USER:-assessments}", password: "${ASSESSMENT_DB_PASSWORD:-assessments}"}, options: {sslmode: disable}}
