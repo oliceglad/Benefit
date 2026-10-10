@@ -137,8 +137,39 @@ else
     done
     build_flag=
 fi
-# shellcheck disable=SC2086
-docker compose up -d $build_flag --remove-orphans $services
+# Почему контейнеры не поднялись: состояние, OOM, последние проверки
+# healthcheck и логи — всё в deploy.log (его показывает CI).
+diagnose() {
+    log "Диагностика"
+    free -h
+    docker compose ps -a --format '{{.Service}}: {{.Status}}'
+    for service in $(docker compose ps -a --format '{{.Service}} {{.State}} {{.Health}}' \
+        | awk '$2 != "running" || ($3 != "" && $3 != "healthy") {print $1}'); do
+        container=$(docker compose ps -a -q "$service")
+        echo "--- $service"
+        docker inspect "$container" --format \
+            'Состояние: {{.State.Status}}, OOMKilled={{.State.OOMKilled}}, код={{.State.ExitCode}}{{if .State.Health}}{{range .State.Health.Log}}
+  проверка {{.Start.Format "15:04:05"}}: код {{.ExitCode}} {{.Output}}{{end}}{{end}}' || true
+        docker compose logs --tail 60 "$service" || true
+    done
+    dmesg -T 2>/dev/null | grep -iE 'out of memory|killed process' | tail -5 || true
+}
+
+# На сервере с 1 ГБ контейнеры стартуют медленно: если зависимость не успела
+# стать healthy, compose прерывает запуск — повторяем, уже запущенные
+# контейнеры к этому времени обычно готовы.
+for attempt in 1 2 3; do
+    # shellcheck disable=SC2086
+    if docker compose up -d $build_flag --remove-orphans $services; then
+        break
+    fi
+    if [ "$attempt" -eq 3 ]; then
+        diagnose
+        exit 1
+    fi
+    log "Не все сервисы успели подняться — повтор ($((attempt + 1))/3)"
+    sleep 20
+done
 for service in $skip; do
     docker compose rm -sf "$service" >/dev/null 2>&1 || true
 done
@@ -153,10 +184,7 @@ while :; do
     if [ "$SECONDS" -ge "$deadline" ]; then
         echo "Не дождался готовности:"
         echo "$pending"
-        for service in $(echo "$pending" | awk '{print $1}'); do
-            echo "--- логи $service"
-            docker compose logs --tail 40 "$service"
-        done
+        diagnose
         exit 1
     fi
     sleep 5
