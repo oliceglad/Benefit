@@ -46,6 +46,7 @@ docker compose up --build
 
 | Что                       | Адрес                                   |
 |---------------------------|-----------------------------------------|
+| Фронтенд (SPA)            | http://localhost:3000                   |
 | Core API / Swagger        | http://localhost:8000/docs              |
 | Auth API / Swagger        | http://localhost:8000/api/v1/auth/docs  |
 | Candidate API / Swagger   | http://localhost:8000/api/v1/candidates/docs |
@@ -55,10 +56,10 @@ docker compose up --build
 | Chat / Swagger            | http://localhost:8000/api/v1/chat/docs |
 | Employers / Swagger       | http://localhost:8000/api/v1/employers/docs |
 | Talent (поиск) / Swagger  | http://localhost:8000/api/v1/talent/docs |
-| Mailpit (входящие письма) | http://localhost:8025                   |
-| Grafana (admin / benefit-grafana) | http://localhost:3001           |
-| Prometheus                | http://localhost:9090                   |
-| Alertmanager              | http://localhost:9093                   |
+| Mailpit (входящие письма) | http://localhost:8025/mailpit/          |
+| Grafana (admin / benefit-grafana) | http://localhost:3001/grafana/  |
+| Prometheus                | http://localhost:9090/prometheus/       |
+| Alertmanager              | http://localhost:9093/alertmanager/     |
 | ФСП ID (mock)             | http://localhost:8003                   |
 | Keycloak (admin/admin)    | http://localhost:8080                   |
 
@@ -87,6 +88,78 @@ WebSocket `/api/v1/chat/ws`) → chat-service, `/api/v1/employers/*` и
 ```bash
 python backend/e2e/smoke_test.py   # нужны пакеты httpx и httpx-ws
 ```
+
+## CI/CD и сервер
+
+Workflow `.github/workflows/ci-cd.yml` запускается на каждый push и PR:
+
+- **Бэкенд:** ruff (lint и формат); тесты каждого сервиса отдельной задачей
+  на чистом PostgreSQL.
+- **Фронтенд:** eslint, typecheck, vitest, сборка.
+- **Образы** собираются в CI и публикуются в GitHub Container Registry
+  (`ghcr.io/<владелец>/benefit-<сервис>:<коммит>`). Только из `main` и только
+  после зелёных проверок. На сервере ничего не собирается: при 1 ГБ памяти
+  там не хватает ресурсов даже на сборку фронтенда.
+- **Деплой** на сервер `DEPLOY_HOST`: код (compose-файл и конфиги)
+  копируется по SSH (rsync) в `/opt/benefit`. Затем на сервере в фоне
+  выполняется `.github/scripts/deploy.sh`: скачивает образы этого коммита,
+  делает `docker compose up`, ждёт healthy и проверяет `/api/v1/status` через
+  фронтенд. Лог CI подтягивает из `/opt/benefit/deploy.log`, поэтому обрыв
+  SSH деплой не прерывает. Деплой можно запустить и вручную («Run workflow»).
+
+Настройка один раз — GitHub → Settings → Secrets and variables → Actions:
+
+| Где | Имя | Значение |
+|---|---|---|
+| Variables | `DEPLOY_HOST` | адрес сервера (IP или домен) |
+| Variables | `DEPLOY_KNOWN_HOSTS` | ключи сервера — вывод `ssh-keyscan <DEPLOY_HOST>` |
+| Secrets | `DEPLOY_SSH_KEY` | приватный ключ, с которым пускает `root@<DEPLOY_HOST>` |
+
+Чтобы переехать на другой сервер, поменяйте `DEPLOY_HOST` и
+`DEPLOY_KNOWN_HOSTS`, правки в коде не нужны. Без `DEPLOY_KNOWN_HOSTS`
+деплой не запустится: по этим ключам проверяется, что код уходит на наш
+сервер, а не на подменённый.
+
+На сервере (`<DEPLOY_HOST>` — адрес из переменной):
+
+| Что | Адрес |
+|---|---|
+| Фронтенд | http://<DEPLOY_HOST>/ |
+| Swagger | http://<DEPLOY_HOST>/docs, `http://<DEPLOY_HOST>/api/v1/<сервис>/docs` |
+| Mailpit (все письма, коды подтверждения) | http://<DEPLOY_HOST>/mailpit/ |
+| Grafana (вход: `admin` / `GRAFANA_ADMIN_PASSWORD` из `/opt/benefit/.env`) | http://<DEPLOY_HOST>/grafana/ |
+| Prometheus | http://<DEPLOY_HOST>/prometheus/ |
+| Alertmanager | http://<DEPLOY_HOST>/alertmanager/ |
+| Шлюз напрямую, базы | только `127.0.0.1` на сервере — через SSH-туннель |
+
+Это тестовый стенд: служебные интерфейсы открыты всем, у кого есть адрес
+(кроме Grafana — у неё свой вход). В Mailpit видны все письма, включая коды
+подтверждения и сброса пароля; в Alertmanager можно заглушить алерты. Для
+настоящего продакшена их нужно закрыть паролем или VPN.
+
+Снаружи открыт только фронтенд: он отдаёт SPA и проксирует на шлюз `/api`,
+`/docs`, `/.well-known` (тот же origin, CORS не нужен). Лимиты шлюз считает
+по реальному IP клиента из `X-Forwarded-For` — заголовку верит только от
+адресов внутренней сети Docker.
+
+- **`.env`.** При первом деплое скрипт ставит Docker и создаёт
+  `/opt/benefit/.env` со случайными паролями и секретами. Дальше `.env` не
+  перезаписывается — меняйте его на сервере вручную.
+- **Память.** На сервере 1 ГБ: скрипт один раз создаёт swap на 4 ГБ, а
+  сервисы из `SERVER_SKIP_SERVICES` (по умолчанию Keycloak, около 250 МБ) не
+  запускает. Keycloak снаружи всё равно недоступен: его адрес — `localhost`.
+  Вход через ФСП ID и Keycloak на сервере не работает, вход по почте и
+  паролю — работает.
+- **`APP_ENV=local`.** Сервер работает по HTTP, а `production` требует HTTPS
+  (Secure-cookie). Поэтому `APP_ENV=local`, но `DEBUG=false`.
+- **Пакеты тестов** в git нет, на сервер их нужно положить вручную, затем
+  перезапустить сервис:
+
+  ```bash
+  scp backend/assessment-service/content/*.json root@<DEPLOY_HOST>:/opt/benefit/backend/assessment-service/content/
+  ssh root@<DEPLOY_HOST> 'cd /opt/benefit && docker compose restart assessment-service'
+  ```
+
 
 ## Мониторинг (Prometheus, Grafana, Alertmanager)
 
@@ -248,7 +321,7 @@ GET  /api/v1/users/me           (Bearer)
 ```
 
 Код действует 10 минут, на ввод даётся 5 попыток. Локально письма
-смотрите в Mailpit: http://localhost:8025.
+смотрите в Mailpit: http://localhost:8025/mailpit/.
 
 **2. ФСП ID** (имитация) и **3. Keycloak** — OpenID Connect, Authorization Code + PKCE:
 
