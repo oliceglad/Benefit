@@ -5,6 +5,7 @@ export function CabinetNavigation({ employer = false }: { employer?: boolean }) 
   const activeProps = { className: 'bg-primary/10 text-primary' }
   return <nav aria-label="Главная навигация" className="flex flex-wrap gap-1 py-2">
     {!employer ? <Link to="/profile" search={{ section: undefined }} className={className} activeProps={activeProps}>Профиль</Link> : null}
+    {employer ? <Link to="/company" className={className} activeProps={activeProps}>Компания</Link> : null}
     <Link to="/vacancies" search={{ offset: 0 }} className={className} activeProps={activeProps}>{employer ? 'Мои вакансии' : 'Вакансии'}</Link>
     <Link to="/messages" className={className} activeProps={activeProps}>Сообщения</Link>
     {employer ? <Link to="/pipelines" className={className} activeProps={activeProps}>Пайплайны</Link> : null}

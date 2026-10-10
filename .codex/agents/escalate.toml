@@ -1,0 +1,5 @@
+name = "escalate"
+description = "Вызывается только после провала проверки основного исполнителя."
+model = "gpt-5.6-sol"
+model_reasoning_effort = "medium"
+developer_instructions = "Предыдущий агент не справился с задачей и проверки упали. Проанализируй логи ошибок и исправь код."

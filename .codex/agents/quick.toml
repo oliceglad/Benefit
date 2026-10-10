@@ -1,0 +1,5 @@
+name = "quick"
+description = "Небольшие изменения с чёткими требованиями, направленные сюда агентом triage."
+model = "gpt-6-luna"
+model_reasoning_effort = "medium"
+developer_instructions = "Внеси изменение. Сохраняй небольшой объём правок. Запусти соответствующие тесты."

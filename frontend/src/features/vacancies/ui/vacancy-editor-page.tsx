@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 
 import { getVacancy, saveVacancy } from '@/features/vacancies/api/vacancies'
+import { employerCompanyQueryKey } from '@/features/employer-company/api/company'
 import { employmentLabels, specializationLabels, vacancyFormSchema, vacancyFormValues, vacancyPayload, type VacancyFormValues } from '@/features/vacancies/model/vacancy-form'
 import { formatLabels, gradeLabels, vacancyStatusLabels } from '@/features/vacancies/model/vacancy-search'
 import { VacancyCompanySetup } from '@/features/vacancies/ui/vacancy-company-setup'
@@ -15,6 +16,7 @@ import { getVacancyCompany } from '@/features/vacancies/api/vacancy-company'
 import type { VacancyResponse } from '@/shared/api/generated/employers/models'
 import { isApiError } from '@/shared/api/transport/api-error'
 import { RequestError } from '@/shared/api/ui/request-error'
+import { useSession } from '@/shared/session/session'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/ui/alert-dialog'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
@@ -24,12 +26,17 @@ import { Textarea } from '@/shared/ui/textarea'
 
 export function VacancyEditorPage() {
   const { vacancyId } = useParams({ strict: false })
+  const accountId = useSession().user?.id ?? 'unknown'
   const vacancy = useQuery({
     queryKey: ['vacancies', 'detail', vacancyId, true],
     queryFn: ({ signal }) => getVacancy(vacancyId!, true, signal),
     enabled: Boolean(vacancyId),
   })
-  const company = useQuery({ queryKey: ['vacancy-company'], queryFn: ({ signal }) => getVacancyCompany(signal), enabled: !vacancyId })
+  const company = useQuery({
+    queryKey: employerCompanyQueryKey(accountId),
+    queryFn: ({ signal }) => getVacancyCompany(signal),
+    enabled: !vacancyId,
+  })
 
   if (vacancyId && vacancy.isPending || !vacancyId && company.isPending) return <Spinner label="Готовим редактор…" />
   if (vacancyId && vacancy.isError) return <RequestError error={vacancy.error} onRetry={() => { void vacancy.refetch() }} />

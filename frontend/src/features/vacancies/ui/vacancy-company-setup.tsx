@@ -6,9 +6,11 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { createVacancyCompany } from '@/features/vacancies/api/vacancy-company'
+import { employerCompanyQueryKey } from '@/features/employer-company/api/company'
 import { VacancyFormField, vacancySelectClass } from '@/features/vacancies/ui/vacancy-form-field'
 import { Industry } from '@/shared/api/generated/employers/models'
 import { RequestError } from '@/shared/api/ui/request-error'
+import { useSession } from '@/shared/session/session'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/ui/alert-dialog'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -30,11 +32,15 @@ const industries: Record<Industry, string> = {
 
 export function VacancyCompanySetup() {
   const client = useQueryClient()
+  const accountId = useSession().user?.id ?? 'unknown'
   const form = useForm<z.infer<typeof companySchema>>({ resolver: zodResolver(companySchema), defaultValues: { name: '', industry: 'other', description: '' } })
   const blocker = useBlocker({ shouldBlockFn: () => form.formState.isDirty, enableBeforeUnload: () => form.formState.isDirty, withResolver: true })
   const mutation = useMutation({
     mutationFn: createVacancyCompany,
-    onSuccess: (company) => { form.reset(); client.setQueryData(['vacancy-company'], company) },
+    onSuccess: (company) => {
+      form.reset()
+      client.setQueryData(employerCompanyQueryKey(accountId), company)
+    },
   })
   return (
     <section className="mx-auto max-w-2xl space-y-6">

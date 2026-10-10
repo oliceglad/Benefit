@@ -131,6 +131,18 @@ the existing need link are preserved on edit. `?q`, `city`, `grade`,
 `work_format`, `salary_min`, employer `status` and `offset` are
 validated at the route. New vacancy and pipeline pages load lazily.
 
+`features/employer-company` owns the employer-only `/company` profile. It reads
+and writes the complete `CompanyIn` contract through the generated employer
+client; a `404 company_not_found` is the create state, not a broken page. The
+form keeps input after API errors, maps server validation issues back to fields,
+blocks duplicate submission and resets only from the server-confirmed PUT
+response. Its account-scoped query key prevents company data crossing sessions.
+Route changes, reload/close and employer logout are protected by a feature-local
+draft coordinator. Company PUT is full replacement and the backend currently
+offers no version or ETag, so the frontend cannot guarantee optimistic locking.
+Logo, team management and verification are intentionally absent until their
+committed OpenAPI contracts are available.
+
 `features/pipelines` owns a frontend constructor with an explicit local-draft
 model. It uses the generated employer client only to read own vacancy options.
 The pipeline draft contains stage configuration, not candidate records, and

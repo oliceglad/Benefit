@@ -147,6 +147,15 @@ const vacanciesRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => vacancySearchSchema.parse(search),
   component: lazyRouteComponent(() => import('@/features/vacancies/ui/vacancies-page'), 'VacanciesPage'),
 })
+const companyRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute,
+  path: '/company',
+  beforeLoad: requireEmployer,
+  component: lazyRouteComponent(
+    () => import('@/features/employer-company/ui/company-profile-page'),
+    'CompanyProfilePage',
+  ),
+})
 const vacancyDetailRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/$vacancyId',
   component: lazyRouteComponent(() => import('@/app/pages/vacancy-page'), 'VacancyPage'),
@@ -233,7 +242,7 @@ const routeTree = rootRoute.addChildren([
   publicationConsentRoute,
   ...(companyDesignPreviewRoute ? [companyDesignPreviewRoute] : []),
   ...(pipelineDesignPreviewRoute ? [pipelineDesignPreviewRoute] : []),
-  cabinetLayoutRoute.addChildren([vacanciesRoute, vacancyCreateRoute, vacancyEditRoute, vacancyDetailRoute, pipelinesRoute, messagesRoute.addChildren([messageThreadRoute])]),
+  cabinetLayoutRoute.addChildren([companyRoute, vacanciesRoute, vacancyCreateRoute, vacancyEditRoute, vacancyDetailRoute, pipelinesRoute, messagesRoute.addChildren([messageThreadRoute])]),
   candidateLayoutRoute.addChildren([profileRoute, assessmentsRoute, assessmentAttemptRoute]),
 ])
 

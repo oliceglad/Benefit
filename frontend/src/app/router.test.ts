@@ -51,6 +51,18 @@ describe('root redirect', () => {
     expect(await open('/')).toBe('/vacancies')
   })
 
+  it('allows an employer to open the company profile', async () => {
+    signedInAs('employer')
+
+    expect(await open('/company')).toBe('/company')
+  })
+
+  it('does not expose the company editor to a candidate', async () => {
+    signedInAs('candidate')
+
+    expect(await open('/company')).toBe('/vacancies')
+  })
+
   it('treats a failed session check as anonymous', async () => {
     restoreAccountSession.mockRejectedValue(new Error('network'))
 
