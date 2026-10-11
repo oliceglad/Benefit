@@ -54,6 +54,12 @@ sources:
       - source_path: src/components/layout/header.tsx
         local_path: src/app/layouts/candidate-layout.tsx
         changes: Header reference; combined into a smaller responsive Benefit shell.
+      - source_path: src/components/layout/top-nav.tsx
+        local_path: src/app/layouts/cabinet-navigation.tsx
+        changes: Responsive top-navigation composition reference; adapted to Benefit role routes, TanStack typed search and the existing dropdown primitive.
+      - source_path: src/components/layout/nav-user.tsx
+        local_path: src/app/layouts/cabinet-layout.tsx
+        changes: Account-menu composition reference; removed donor avatar, billing and notification actions and retained only real Benefit identity, role and logout behavior.
       - source_path: src/components/ui/select.tsx
         local_path: src/shared/ui/select.tsx
         changes: Adapted aliases, responsive control sizing, Benefit focus styles and popover width; wrapped by the local SelectField adapter.
@@ -93,3 +99,9 @@ sources:
       - source_path: apps/applicant-tracking/src/pages/JobsPage.tsx
         local_path: src/features/vacancies/ui/employer-vacancy-list.tsx
         changes: Compact job rows, visibility/status and edit action composition; adapted to Benefit fields, real statuses and TanStack Router. No synthetic candidate counts or donor branding.
+      - source_path: apps/applicant-tracking/src/components/PageHeader.tsx
+        local_path: src/features/vacancies/ui/vacancies-page.tsx
+        changes: Compact page-heading and truthful empty-state composition reference; adapted to Benefit server data, URL filters and Russian copy.
+      - source_path: apps/applicant-tracking/src/components/StageEditorDialog.tsx
+        local_path: src/features/pipelines/ui/pipelines-page.tsx
+        changes: Progressive-disclosure stage editing reference; adapted to a single expanded local draft stage, keyboard move controls and Benefit dropdown library without donor API or dialog dependency.

@@ -12,6 +12,7 @@ import { formatLabels, gradeLabels, vacancyStatusLabels } from '@/features/vacan
 import { VacancyCompanySetup } from '@/features/vacancies/ui/vacancy-company-setup'
 import { VacancyFormField, vacancySelectClass } from '@/features/vacancies/ui/vacancy-form-field'
 import { VacancyFormPreview } from '@/features/vacancies/ui/vacancy-form-preview'
+import { VacancyLoadError } from '@/features/vacancies/ui/vacancy-load-error'
 import { getVacancyCompany } from '@/features/vacancies/api/vacancy-company'
 import type { VacancyResponse } from '@/shared/api/generated/employers/models'
 import { isApiError } from '@/shared/api/transport/api-error'
@@ -39,7 +40,7 @@ export function VacancyEditorPage() {
   })
 
   if (vacancyId && vacancy.isPending || !vacancyId && company.isPending) return <Spinner label="Готовим редактор…" />
-  if (vacancyId && vacancy.isError) return <RequestError error={vacancy.error} onRetry={() => { void vacancy.refetch() }} />
+  if (vacancyId && vacancy.isError) return <VacancyLoadError error={vacancy.error} onRetry={() => { void vacancy.refetch() }} />
   if (!vacancyId && company.isError) return <RequestError error={company.error} onRetry={() => { void company.refetch() }} />
   if (!vacancyId && company.data === null) return <VacancyCompanySetup />
 
@@ -54,7 +55,7 @@ function VacancyEditor({ vacancy, companyName }: { vacancy?: VacancyResponse; co
   const values = useWatch({ control: form.control }) as VacancyFormValues
   const blocker = useBlocker({ shouldBlockFn: () => form.formState.isDirty, enableBeforeUnload: () => form.formState.isDirty, withResolver: true })
   const mutation = useMutation({
-    mutationFn: (input: VacancyFormValues) => saveVacancy(vacancyPayload(input, vacancy?.need_id), vacancy?.id),
+    mutationFn: (input: VacancyFormValues) => saveVacancy(vacancyPayload(input, vacancy?.need_id, vacancy), vacancy?.id),
     onSuccess: async (saved) => {
       client.setQueryData(['vacancies', 'detail', saved.id, true], saved)
       void client.invalidateQueries({ queryKey: ['vacancies'] })

@@ -10,6 +10,7 @@ import type { CompanyResponse } from '@/shared/api/generated/employers/models'
 const company: CompanyResponse = {
   id: 'company-1',
   owner_id: 'employer-1',
+  has_logo: false,
   name: 'Benefit',
   legal_name: null,
   inn: null,
@@ -23,6 +24,11 @@ const company: CompanyResponse = {
   contact_email: null,
   contact_phone: null,
   telegram: null,
+  verification: {
+    status: 'unverified', title: 'Не проверена', is_verified: false,
+    verified_at: null, registry: null, verified_by: null, note: null,
+    checked_at: null, checks: [],
+  },
   created_at: '2026-10-11T10:00:00Z',
   updated_at: '2026-10-11T10:00:00Z',
 }
@@ -31,7 +37,7 @@ describe('company profile form model', () => {
   it('keeps every server field when building a full PUT payload', () => {
     const values = companyProfileFormValues(company)
     values.city = ' Самара '
-    values.tech_stack = 'TypeScript, python\nPostgreSQL'
+    values.tech_stack = ['TypeScript', 'python', 'PostgreSQL']
 
     expect(companyProfilePayload(values)).toEqual({
       name: 'Benefit',

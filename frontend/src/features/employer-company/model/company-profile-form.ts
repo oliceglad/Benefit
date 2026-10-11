@@ -53,13 +53,9 @@ export const companyProfileFormSchema = z.object({
   ),
   city: optionalText(100, 'Не более 100 символов'),
   size: z.union([z.literal(''), z.enum(CompanySize)]),
-  tech_stack: z.string().superRefine((value, context) => {
-    const items = splitTechStack(value)
+  tech_stack: z.array(z.string().trim().min(1).max(64, 'Каждая технология — не более 64 символов')).superRefine((items, context) => {
     if (items.length > 50) {
       context.addIssue({ code: 'custom', message: 'Не более 50 технологий' })
-    }
-    if (items.some((item) => item.length > 64)) {
-      context.addIssue({ code: 'custom', message: 'Каждая технология — не более 64 символов' })
     }
   }),
   contact_name: optionalText(200, 'Не более 200 символов'),
@@ -99,7 +95,7 @@ export function companyProfileFormValues(
     website: company?.website ?? '',
     city: company?.city ?? '',
     size: company?.size ?? '',
-    tech_stack: company?.tech_stack?.join(', ') ?? '',
+    tech_stack: company?.tech_stack ?? [],
     contact_name: company?.contact_name ?? '',
     contact_email: company?.contact_email ?? '',
     contact_phone: company?.contact_phone ?? '',
@@ -124,7 +120,7 @@ export function companyProfilePayload(
     website: nullable(values.website),
     city: nullable(values.city),
     size: values.size || null,
-    tech_stack: splitTechStack(values.tech_stack),
+    tech_stack: splitTechStack(values.tech_stack.join(',')),
     contact_name: nullable(values.contact_name),
     contact_email: nullable(values.contact_email),
     contact_phone: nullable(values.contact_phone),

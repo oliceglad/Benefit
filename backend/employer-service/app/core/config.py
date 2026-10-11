@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # столько минут (кандидаты обновляют профили).
     match_snapshot_ttl_minutes: int = 30
 
+    logo_max_bytes: int = 5 * 1024 * 1024
+    logo_max_side: int = 1024
+
     @computed_field
     @property
     def database_url(self) -> URL:

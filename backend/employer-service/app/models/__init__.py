@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -126,6 +127,17 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    logo: Mapped["CompanyLogo | None"] = relationship(
+        back_populates="company",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        uselist=False,
+    )
+
+    @property
+    def has_logo(self) -> bool:
+        return self.logo is not None
+
     @property
     def verification(self) -> dict[str, Any]:
         """Блок проверки для ответов API (публичная схема берёт часть полей)."""
@@ -141,6 +153,18 @@ class Company(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "checked_at": self.checked_at,
             "checks": self.verification_checks or [],
         }
+
+
+class CompanyLogo(TimestampMixin, Base):
+    __tablename__ = "company_logos"
+
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), primary_key=True
+    )
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    content_type: Mapped[str] = mapped_column(String(32))
+
+    company: Mapped[Company] = relationship(back_populates="logo")
 
 
 class HiringNeed(UUIDPrimaryKeyMixin, TimestampMixin, Base):

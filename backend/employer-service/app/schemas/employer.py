@@ -186,6 +186,7 @@ class CompanyResponse(CompanyIn):
 
     id: uuid.UUID
     owner_id: uuid.UUID
+    has_logo: bool
     verification: CompanyVerification
     created_at: datetime
     updated_at: datetime

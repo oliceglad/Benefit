@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Benefit Employers",
+    "title": "Benefit",
     "version": "0.1.0"
   },
   "paths": {
@@ -76,6 +76,109 @@
         ]
       }
     },
+    "/api/v1/employers/company/logo": {
+      "get": {
+        "tags": [
+          "компания"
+        ],
+        "summary": "Get Company Logo",
+        "description": "Return the current employer's company logo.",
+        "operationId": "get_company_logo_api_v1_employers_company_logo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "компания"
+        ],
+        "summary": "Upload Company Logo",
+        "description": "Upload or replace the current employer's company logo.",
+        "operationId": "upload_company_logo_api_v1_employers_company_logo_put",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_company_logo_api_v1_employers_company_logo_put"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "компания"
+        ],
+        "summary": "Delete Company Logo",
+        "description": "Delete the current employer's company logo.",
+        "operationId": "delete_company_logo_api_v1_employers_company_logo_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/employers/company/verification": {
+      "post": {
+        "tags": [
+          "компания"
+        ],
+        "summary": "Verify Company",
+        "description": "Проверка компании по открытым источникам.\n\nИНН проверяется по ЕГРЮЛ/ЕГРИП ФНС (существует, действует; юридическое\nнаименование, ОГРН, руководитель — из реестра). Значок «Проверенный\nработодатель» выдаётся автоматически, если почта аккаунта на домене\nсайта компании и на сайте опубликован этот ИНН. Иначе — статус\n``registry_confirmed`` и решение модератора. Список ``checks`` объясняет,\nчто пройдено и чего не хватает.",
+        "operationId": "verify_company_api_v1_employers_company_verification_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/employers/companies/{company_id}": {
       "get": {
         "tags": [
@@ -101,6 +204,117 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCompanyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/employers/admin/companies": {
+      "get": {
+        "tags": [
+          "модерация"
+        ],
+        "summary": "Companies For Review",
+        "description": "Компании по статусу проверки (по умолчанию — ждут модератора).",
+        "operationId": "companies_for_review_api_v1_employers_admin_companies_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/VerificationStatus",
+              "default": "registry_confirmed"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyResponse"
+                  },
+                  "title": "Response Companies For Review Api V1 Employers Admin Companies Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/employers/admin/companies/{company_id}/verification": {
+      "post": {
+        "tags": [
+          "модерация"
+        ],
+        "summary": "Moderate Company",
+        "description": "Решение модератора: подтвердить (только действующую по реестру\nкомпанию) или отказать с комментарием для работодателя.",
+        "operationId": "moderate_company_api_v1_employers_admin_companies__company_id__verification_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationDecision"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -620,28 +834,57 @@
           "вакансии"
         ],
         "summary": "My Vacancies",
+        "description": "Свои вакансии. Без ``status`` — все, кроме архива;\n``?status=archived`` — архив.",
         "operationId": "my_vacancies_api_v1_employers_vacancies_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/VacancyStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/VacancyResponse"
                   },
-                  "type": "array",
                   "title": "Response My Vacancies Api V1 Employers Vacancies Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -650,15 +893,20 @@
         "summary": "Create Vacancy",
         "description": "Черновик вакансии; публикация — ``PATCH {status: \"published\"}``.",
         "operationId": "create_vacancy_api_v1_employers_vacancies_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/VacancyIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -681,12 +929,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/employers/vacancies/{vacancy_id}": {
@@ -797,7 +1040,7 @@
           "вакансии"
         ],
         "summary": "Set Vacancy Status",
-        "description": "Опубликовать, снять в черновик или закрыть вакансию.",
+        "description": "Смена статуса вакансии.\n\n``draft → published`` (нужны обязательные навыки и обязанности, иначе 422\n``vacancy_incomplete``), ``published → closed`` (набор закрыт),\n``closed → published`` (открыть снова), ``* → archived`` (в архив),\n``archived → draft`` (восстановить).",
         "operationId": "set_vacancy_status_api_v1_employers_vacancies__vacancy_id__patch",
         "security": [
           {
@@ -836,6 +1079,272 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/employers/vacancies/{vacancy_id}/matches": {
+      "get": {
+        "tags": [
+          "вакансии"
+        ],
+        "summary": "Vacancy Matches",
+        "description": "Подборка кандидатов по требованиям вакансии.\n\nСервер хранит подборку и пересчитывает её, когда изменились требования\nвакансии (``matching_version`` растёт, ``changes`` — кто добавился и кто\nвыпал), отметки «подходит / не подходит», или подборка старше 30 минут.\nКонтакты с кандидатами учитываются при каждом запросе.",
+        "operationId": "vacancy_matches_api_v1_employers_vacancies__vacancy_id__matches_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vacancy_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Vacancy Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "hide_contacted",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Скрыть кандидатов, с которыми уже был контакт",
+              "default": false,
+              "title": "Hide Contacted"
+            },
+            "description": "Скрыть кандидатов, с которыми уже был контакт"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Пересчитать, не дожидаясь устаревания",
+              "default": false,
+              "title": "Refresh"
+            },
+            "description": "Пересчитать, не дожидаясь устаревания"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VacancyMatchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/employers/vacancies/{vacancy_id}/feedback": {
+      "get": {
+        "tags": [
+          "вакансии"
+        ],
+        "summary": "List Vacancy Feedback",
+        "operationId": "list_vacancy_feedback_api_v1_employers_vacancies__vacancy_id__feedback_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vacancy_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Vacancy Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FeedbackResponse"
+                  },
+                  "title": "Response List Vacancy Feedback Api V1 Employers Vacancies  Vacancy Id  Feedback Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/employers/vacancies/{vacancy_id}/feedback/{candidate_id}": {
+      "put": {
+        "tags": [
+          "вакансии"
+        ],
+        "summary": "Set Vacancy Feedback",
+        "description": "«Подходит» / «не подходит» в подборке вакансии: подборка будет\nпересчитана с учётом отметки.",
+        "operationId": "set_vacancy_feedback_api_v1_employers_vacancies__vacancy_id__feedback__candidate_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vacancy_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Vacancy Id"
+            }
+          },
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "вакансии"
+        ],
+        "summary": "Delete Vacancy Feedback",
+        "operationId": "delete_vacancy_feedback_api_v1_employers_vacancies__vacancy_id__feedback__candidate_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vacancy_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Vacancy Id"
+            }
+          },
+          {
+            "name": "candidate_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Candidate Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -944,6 +1453,22 @@
                 }
               ],
               "title": "Salary Min"
+            }
+          },
+          {
+            "name": "salary_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SalaryType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salary Type"
             }
           },
           {
@@ -1198,10 +1723,71 @@
           }
         }
       }
+    },
+    "/internal/v1/users/{user_id}": {
+      "delete": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Delete User",
+        "description": "Аккаунт удалён: компания работодателя со всеми потребностями и\nвакансиями (каскадом), а также отметки работодателей по удалённому\nкандидату. Идемпотентно.",
+        "operationId": "delete_user_internal_v1_users__user_id__delete",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "x-internal-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "X-Internal-Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "Body_upload_company_logo_api_v1_employers_company_logo_put": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_company_logo_api_v1_employers_company_logo_put"
+      },
       "CompanyBrief": {
         "properties": {
           "id": {
@@ -1237,6 +1823,14 @@
               }
             ],
             "title": "Website"
+          },
+          "verification_status": {
+            "$ref": "#/components/schemas/VerificationStatus"
+          },
+          "is_verified": {
+            "type": "boolean",
+            "title": "Is Verified",
+            "default": false
           }
         },
         "type": "object",
@@ -1245,7 +1839,8 @@
           "name",
           "industry",
           "city",
-          "website"
+          "website",
+          "verification_status"
         ],
         "title": "CompanyBrief"
       },
@@ -1543,6 +2138,13 @@
             "format": "uuid",
             "title": "Owner Id"
           },
+          "has_logo": {
+            "type": "boolean",
+            "title": "Has Logo"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/CompanyVerification"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1562,10 +2164,13 @@
           "description",
           "id",
           "owner_id",
+          "has_logo",
+          "verification",
           "created_at",
           "updated_at"
         ],
-        "title": "CompanyResponse"
+        "title": "CompanyResponse",
+        "description": "Профиль компании для владельца."
       },
       "CompanySize": {
         "type": "string",
@@ -1577,6 +2182,102 @@
           "1000+"
         ],
         "title": "CompanySize"
+      },
+      "CompanyVerification": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/VerificationStatus"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "is_verified": {
+            "type": "boolean",
+            "title": "Is Verified"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "registry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegistryInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "moderator"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified By"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "title",
+          "is_verified",
+          "verified_at",
+          "registry",
+          "verified_by",
+          "note",
+          "checked_at",
+          "checks"
+        ],
+        "title": "CompanyVerification",
+        "description": "Для владельца: какие проверки пройдены и что сделать дальше."
       },
       "EmploymentType": {
         "type": "string",
@@ -1731,6 +2432,43 @@
         ],
         "title": "Industry"
       },
+      "MatchChanges": {
+        "properties": {
+          "from_version": {
+            "type": "integer",
+            "title": "From Version"
+          },
+          "to_version": {
+            "type": "integer",
+            "title": "To Version"
+          },
+          "added": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Added"
+          },
+          "removed": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Removed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_version",
+          "to_version",
+          "added",
+          "removed"
+        ],
+        "title": "MatchChanges",
+        "description": "Что изменилось в подборке после изменения требований."
+      },
       "MatchResponse": {
         "properties": {
           "need_id": {
@@ -1790,6 +2528,102 @@
         ],
         "title": "MatchResponse",
         "description": "Подборка по потребности (из matching-service)."
+      },
+      "MatchingSettings": {
+        "properties": {
+          "require_confirmed_grade": {
+            "type": "boolean",
+            "title": "Require Confirmed Grade",
+            "default": false
+          },
+          "strict_skills": {
+            "type": "boolean",
+            "title": "Strict Skills",
+            "description": "Все обязательные навыки (близкие не в счёт)",
+            "default": false
+          },
+          "grade_tolerance": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Grade Tolerance",
+            "description": "Допустимое отклонение грейда, ступеней",
+            "default": 1
+          },
+          "min_experience_months": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 600.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Experience Months"
+          },
+          "hard_budget": {
+            "type": "boolean",
+            "title": "Hard Budget",
+            "description": "Исключать ожидания выше salary_to",
+            "default": false
+          },
+          "strict_format": {
+            "type": "boolean",
+            "title": "Strict Format",
+            "description": "Исключать кандидатов с другим форматом работы",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "MatchingSettings",
+        "description": "Жёсткие требования подбора: кандидаты, не прошедшие их, в подборку\nне попадают (остальные требования влияют на порядок)."
+      },
+      "MatchingState": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "computed_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed Version"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "requirements_changed": {
+            "type": "boolean",
+            "title": "Requirements Changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "computed_version",
+          "computed_at",
+          "requirements_changed"
+        ],
+        "title": "MatchingState",
+        "description": "Актуальность подбора: ``version`` растёт при изменении требований;\n``requirements_changed`` — показанная подборка устарела, её нужно\nзапросить заново (сервер пересчитает)."
       },
       "NeedIn": {
         "properties": {
@@ -2156,6 +2990,352 @@
         ],
         "title": "NeedStatusUpdate"
       },
+      "PublicCompanyResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "legal_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Name"
+          },
+          "inn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inn"
+          },
+          "industry": {
+            "$ref": "#/components/schemas/Industry"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanySize"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tech_stack": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Tech Stack"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "telegram": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Owner Id"
+          },
+          "has_logo": {
+            "type": "boolean",
+            "title": "Has Logo"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/PublicVerification"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "industry",
+          "description",
+          "id",
+          "owner_id",
+          "has_logo",
+          "verification",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PublicCompanyResponse",
+        "description": "Профиль компании для кандидатов: без деталей проверок."
+      },
+      "PublicVerification": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/VerificationStatus"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "is_verified": {
+            "type": "boolean",
+            "title": "Is Verified"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "registry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegistryInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "title",
+          "is_verified",
+          "verified_at",
+          "registry"
+        ],
+        "title": "PublicVerification",
+        "description": "Статус проверки для кандидатов: значок «Проверенный работодатель»."
+      },
+      "RegistryInfo": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "legal",
+              "individual"
+            ],
+            "title": "Kind"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "short_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Name"
+          },
+          "ogrn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ogrn"
+          },
+          "kpp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kpp"
+          },
+          "registered_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registered At"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "director": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Director"
+          },
+          "terminated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "full_name",
+          "short_name",
+          "ogrn",
+          "kpp",
+          "registered_at",
+          "region",
+          "director",
+          "terminated_at"
+        ],
+        "title": "RegistryInfo",
+        "description": "Сведения из ЕГРЮЛ/ЕГРИП (открытые данные ФНС)."
+      },
+      "SalaryType": {
+        "type": "string",
+        "enum": [
+          "gross",
+          "net"
+        ],
+        "title": "SalaryType",
+        "description": "Налоговый режим зарплаты."
+      },
       "VacancyIn": {
         "properties": {
           "salary_from": {
@@ -2208,7 +3388,7 @@
           "grade": {
             "$ref": "#/components/schemas/Grade"
           },
-          "skills": {
+          "required_skills": {
             "items": {
               "type": "string",
               "maxLength": 64,
@@ -2216,7 +3396,31 @@
             },
             "type": "array",
             "maxItems": 30,
-            "title": "Skills"
+            "title": "Required Skills"
+          },
+          "optional_skills": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Optional Skills"
+          },
+          "responsibilities": {
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Responsibilities"
+          },
+          "salary_type": {
+            "$ref": "#/components/schemas/SalaryType",
+            "default": "gross"
           },
           "work_format": {
             "anyOf": [
@@ -2262,6 +3466,16 @@
               }
             ],
             "title": "Need Id"
+          },
+          "matching": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatchingSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -2272,7 +3486,102 @@
           "specialization",
           "grade"
         ],
-        "title": "VacancyIn"
+        "title": "VacancyIn",
+        "description": "Вакансия. Черновик можно сохранить неполным; для публикации нужны\nхотя бы один обязательный навык и одна обязанность."
+      },
+      "VacancyMatchResponse": {
+        "properties": {
+          "vacancy_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Vacancy Id"
+          },
+          "matching_version": {
+            "type": "integer",
+            "title": "Matching Version"
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          },
+          "recalculated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recalculated"
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatchChanges"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "categories": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "candidates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "excluded": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Excluded"
+          },
+          "suggestions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keywords"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vacancy_id",
+          "matching_version",
+          "computed_at",
+          "recalculated",
+          "changes",
+          "total",
+          "categories",
+          "candidates"
+        ],
+        "title": "VacancyMatchResponse",
+        "description": "Подборка кандидатов по вакансии."
       },
       "VacancyPage": {
         "properties": {
@@ -2347,7 +3656,7 @@
           "grade": {
             "$ref": "#/components/schemas/Grade"
           },
-          "skills": {
+          "required_skills": {
             "items": {
               "type": "string",
               "maxLength": 64,
@@ -2355,7 +3664,31 @@
             },
             "type": "array",
             "maxItems": 30,
-            "title": "Skills"
+            "title": "Required Skills"
+          },
+          "optional_skills": {
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Optional Skills"
+          },
+          "responsibilities": {
+            "items": {
+              "type": "string",
+              "maxLength": 500,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Responsibilities"
+          },
+          "salary_type": {
+            "$ref": "#/components/schemas/SalaryType",
+            "default": "gross"
           },
           "work_format": {
             "anyOf": [
@@ -2402,6 +3735,9 @@
             ],
             "title": "Need Id"
           },
+          "matching": {
+            "$ref": "#/components/schemas/MatchingSettings"
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -2430,6 +3766,40 @@
             ],
             "title": "Published At"
           },
+          "closed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "publish_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Publish Blockers"
+          },
+          "matching_state": {
+            "$ref": "#/components/schemas/MatchingState"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -2448,11 +3818,16 @@
           "description",
           "specialization",
           "grade",
+          "matching",
           "id",
           "company",
           "owner_id",
           "status",
           "published_at",
+          "closed_at",
+          "archived_at",
+          "publish_blockers",
+          "matching_state",
           "created_at",
           "updated_at"
         ],
@@ -2463,9 +3838,11 @@
         "enum": [
           "draft",
           "published",
-          "closed"
+          "closed",
+          "archived"
         ],
-        "title": "VacancyStatus"
+        "title": "VacancyStatus",
+        "description": "Жизненный цикл вакансии.\n\n* ``draft`` — черновик, кандидаты не видят;\n* ``published`` — в каталоге, на неё откликаются;\n* ``closed`` — набор закрыт (можно открыть снова);\n* ``archived`` — в архиве: скрыта из списков, не редактируется,\n  восстанавливается в черновик."
       },
       "VacancyStatusUpdate": {
         "properties": {
@@ -2477,7 +3854,8 @@
         "required": [
           "status"
         ],
-        "title": "VacancyStatusUpdate"
+        "title": "VacancyStatusUpdate",
+        "description": "Смена статуса: опубликовать, снять в черновик, закрыть набор,\nперенести в архив или восстановить из архива (в черновик)."
       },
       "ValidationError": {
         "properties": {
@@ -2518,6 +3896,79 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerificationCheck": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "passed",
+          "message"
+        ],
+        "title": "VerificationCheck"
+      },
+      "VerificationDecision": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "rejected"
+            ],
+            "title": "Decision"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "title": "VerificationDecision",
+        "description": "Решение модератора."
+      },
+      "VerificationStatus": {
+        "type": "string",
+        "enum": [
+          "unverified",
+          "registry_confirmed",
+          "verified",
+          "rejected"
+        ],
+        "title": "VerificationStatus",
+        "description": "Проверка компании.\n\n* ``unverified`` — не проверялась (или изменились ИНН / сайт);\n* ``registry_confirmed`` — компания действует по ЕГРЮЛ/ЕГРИП, но связь\n  работодателя с ней не доказана: ждёт модератора;\n* ``verified`` — проверенный работодатель (автоматически или модератором);\n* ``rejected`` — ИНН нет в реестре, компания ликвидирована или\n  модератор отказал."
       },
       "WorkFormat": {
         "type": "string",

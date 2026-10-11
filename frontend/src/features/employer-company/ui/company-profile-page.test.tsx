@@ -20,6 +20,7 @@ import { server } from '@/test/server'
 const company: CompanyResponse = {
   id: 'company-1',
   owner_id: 'employer-1',
+  has_logo: false,
   name: 'Benefit',
   legal_name: 'ООО Бенефит',
   inn: '7707083893',
@@ -33,6 +34,11 @@ const company: CompanyResponse = {
   contact_email: 'hr@benefit.example',
   contact_phone: '+70000000000',
   telegram: '@benefit_hr',
+  verification: {
+    status: 'unverified', title: 'Не проверена', is_verified: false,
+    verified_at: null, registry: null, verified_by: null, note: null,
+    checked_at: null, checks: [],
+  },
   created_at: '2026-10-11T10:00:00Z',
   updated_at: '2026-10-11T10:00:00Z',
 }
@@ -87,14 +93,16 @@ describe('employer company profile', () => {
     await renderPage()
     const user = userEvent.setup()
 
-    const name = await screen.findByLabelText(/Название компании/)
+    await user.click(await screen.findByRole('button', { name: 'Редактировать' }))
+
+    const name = screen.getByLabelText(/Название компании/)
     expect(name).toHaveValue('Benefit')
     expect(screen.getByLabelText('Telegram')).toHaveValue('@benefit_hr')
     await user.clear(name)
     await user.type(name, 'Benefit new')
-    await user.click(screen.getByRole('button', { name: 'Сохранить изменения' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
-    await waitFor(() => expect(name).toHaveValue('Benefit — подтверждено сервером'))
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Benefit — подтверждено сервером' })).toBeVisible())
     expect(payload).toMatchObject({
       name: 'Benefit new',
       legal_name: 'ООО Бенефит',
@@ -106,8 +114,7 @@ describe('employer company profile', () => {
       contact_email: 'hr@benefit.example',
       telegram: '@benefit_hr',
     })
-    expect(screen.getByText('Все изменения сохранены')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Сохранить изменения' })).toBeDisabled()
+    expect(screen.getByText('Изменения сохранены')).toBeVisible()
   })
 
   it('keeps input after 422 and maps a server issue to its field', async () => {
@@ -124,10 +131,12 @@ describe('employer company profile', () => {
     await renderPage()
     const user = userEvent.setup()
 
-    const name = await screen.findByLabelText(/Название компании/)
+    await user.click(await screen.findByRole('button', { name: 'Редактировать' }))
+
+    const name = screen.getByLabelText(/Название компании/)
     await user.clear(name)
     await user.type(name, 'Несохранённое название')
-    await user.click(screen.getByRole('button', { name: 'Сохранить изменения' }))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(await screen.findByText('ИНН не прошёл проверку контрольной суммы')).toBeVisible()
     expect(name).toHaveValue('Несохранённое название')
@@ -144,7 +153,7 @@ describe('employer company profile', () => {
     const user = userEvent.setup()
     const name = await screen.findByLabelText(/Название компании/)
 
-    expect(screen.getByText('Профиль компании ещё не заполнен')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Создайте компанию' })).toBeVisible()
     await user.type(name, 'Новая компания')
     void router.navigate({ to: '/vacancies', search: { offset: 0 } })
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Есть несохранённые изменения')
@@ -202,6 +211,6 @@ describe('employer company profile', () => {
     await waitFor(() => expect(calls).toBe(1))
     expect(submit).toBeDisabled()
     resolveRequest()
-    await waitFor(() => expect(screen.getByText('Все изменения сохранены')).toBeVisible())
+    await waitFor(() => expect(screen.getByText('Изменения сохранены')).toBeVisible())
   })
 })

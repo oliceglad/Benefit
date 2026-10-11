@@ -5,7 +5,8 @@ from typing import Annotated
 
 from benefit_common.errors import NotFoundError
 from benefit_common.security import Admin, CurrentPrincipal, Employer
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 
 from app.api.deps import (
@@ -16,7 +17,8 @@ from app.api.deps import (
     VacancyMatcherDep,
     VerifierDep,
 )
-from app.models import Company, VacancyStatus, VerificationStatus
+from app.core.config import settings
+from app.models import Company, CompanyLogo, VacancyStatus, VerificationStatus
 from app.schemas.employer import (
     CompanyIn,
     CompanyResponse,
@@ -33,6 +35,7 @@ from app.schemas.employer import (
     VacancyStatusUpdate,
     VerificationDecision,
 )
+from app.services.company_logos import process_company_logo
 from app.services.matching import need_criteria
 
 router = APIRouter()
@@ -59,6 +62,62 @@ async def save_company(
 ) -> CompanyResponse:
     """Создать или обновить профиль компании: описание, направление, контакты."""
     return CompanyResponse.model_validate(await service.save_company(employer, data))
+
+
+@router.put("/company/logo", status_code=status.HTTP_204_NO_CONTENT, tags=["компания"])
+async def upload_company_logo(
+    file: UploadFile,
+    employer: Employer,
+    service: EmployerServiceDep,
+    session: SessionDep,
+) -> None:
+    """Upload or replace the current employer's company logo."""
+    company = await service.my_company(employer)
+    raw = await file.read(settings.logo_max_bytes + 1)
+    content, content_type = await run_in_threadpool(process_company_logo, raw)
+    logo = await session.get(CompanyLogo, company.id)
+    if logo is None:
+        session.add(
+            CompanyLogo(
+                company_id=company.id,
+                content=content,
+                content_type=content_type,
+            )
+        )
+    else:
+        logo.content = content
+        logo.content_type = content_type
+    await session.commit()
+
+
+@router.get("/company/logo", response_class=Response, tags=["компания"])
+async def get_company_logo(
+    employer: Employer, service: EmployerServiceDep, session: SessionDep
+) -> Response:
+    """Return the current employer's company logo."""
+    company = await service.my_company(employer)
+    logo = await session.get(CompanyLogo, company.id)
+    if logo is None:
+        raise NotFoundError("Логотип не загружен", code="logo_not_found")
+    return Response(
+        logo.content,
+        media_type=logo.content_type,
+        headers={"Cache-Control": "private, max-age=60"},
+    )
+
+
+@router.delete(
+    "/company/logo", status_code=status.HTTP_204_NO_CONTENT, tags=["компания"]
+)
+async def delete_company_logo(
+    employer: Employer, service: EmployerServiceDep, session: SessionDep
+) -> None:
+    """Delete the current employer's company logo."""
+    company = await service.my_company(employer)
+    logo = await session.get(CompanyLogo, company.id)
+    if logo is not None:
+        await session.delete(logo)
+        await session.commit()
 
 
 @router.post("/company/verification", response_model=CompanyResponse, tags=["компания"])

@@ -14,7 +14,9 @@ export async function listVacancies(params: ListVacanciesApiV1VacanciesGetParams
   return response.data
 }
 export async function listOwnVacancies(signal?: AbortSignal) {
-  return (await myVacanciesApiV1EmployersVacanciesGet(requestOptions(signal))).data
+  const response = await myVacanciesApiV1EmployersVacanciesGet({}, requestOptions(signal))
+  if (response.status !== 200) throw new Error('Unexpected employer vacancy list response')
+  return response.data
 }
 export async function getVacancy(id: string, employer: boolean, signal?: AbortSignal) {
   const request = employer ? getMyVacancyApiV1EmployersVacanciesVacancyIdGet : getVacancyApiV1VacanciesVacancyIdGet

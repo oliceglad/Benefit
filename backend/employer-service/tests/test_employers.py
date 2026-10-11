@@ -1,3 +1,4 @@
+import io
 import uuid
 from typing import Any
 
@@ -5,6 +6,7 @@ import pytest
 from benefit_common.settings import get_common_settings
 from benefit_common.testing import TestUser
 from httpx import AsyncClient
+from PIL import Image
 
 from app.main import app
 from app.services.matching import get_matcher
@@ -44,6 +46,51 @@ async def test_company_profile(client: AsyncClient) -> None:
     assert (
         await client.get(f"{API}/company", headers=candidate.headers)
     ).status_code == 403
+
+
+async def test_company_logo_lifecycle_and_permissions(client: AsyncClient) -> None:
+    employer = TestUser("employer")
+    other = TestUser("employer")
+    await with_company(client, employer)
+    await with_company(client, other)
+
+    image = Image.new("RGBA", (160, 80), (20, 90, 220, 128))
+    payload = io.BytesIO()
+    image.save(payload, format="WEBP")
+    uploaded = await client.put(
+        f"{API}/company/logo",
+        files={"file": ("logo.webp", payload.getvalue(), "image/webp")},
+        headers=employer.headers,
+    )
+    assert uploaded.status_code == 204, uploaded.text
+
+    company = await client.get(f"{API}/company", headers=employer.headers)
+    assert company.json()["has_logo"] is True
+    logo = await client.get(f"{API}/company/logo", headers=employer.headers)
+    assert logo.status_code == 200
+    assert logo.headers["content-type"] == "image/png"
+    with Image.open(io.BytesIO(logo.content)) as decoded:
+        assert decoded.size == (160, 80)
+
+    assert (
+        await client.get(f"{API}/company/logo", headers=other.headers)
+    ).status_code == 404
+    invalid = await client.put(
+        f"{API}/company/logo",
+        files={"file": ("logo.png", b"not an image", "image/png")},
+        headers=employer.headers,
+    )
+    assert invalid.status_code == 422
+    assert (
+        await client.get(f"{API}/company/logo", headers=employer.headers)
+    ).status_code == 200
+
+    removed = await client.delete(
+        f"{API}/company/logo", headers=employer.headers
+    )
+    assert removed.status_code == 204
+    company = await client.get(f"{API}/company", headers=employer.headers)
+    assert company.json()["has_logo"] is False
 
 
 @pytest.mark.parametrize("inn", ["1234567890", "123", "770708389X"])
