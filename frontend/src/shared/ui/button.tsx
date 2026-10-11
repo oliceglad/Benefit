@@ -17,7 +17,7 @@ const buttonVariants = cva(
           'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/35',
       },
       size: {
-        default: 'min-h-12',
+        default: 'min-h-11',
         sm: 'min-h-10 rounded-lg px-3',
         icon: 'size-11 min-h-11 px-0',
       },

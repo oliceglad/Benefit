@@ -34,11 +34,11 @@ export function vacancyFormValues(vacancy?: VacancyResponse): VacancyFormValues 
     work_format: vacancy?.work_format ?? '', employment_type: vacancy?.employment_type ?? '',
     city: vacancy?.city ?? '', currency: vacancy?.currency ?? 'RUB',
     salary_from: vacancy?.salary_from?.toString() ?? '', salary_to: vacancy?.salary_to?.toString() ?? '',
-    skills: vacancy?.skills?.join(', ') ?? '',
+    skills: vacancy?.required_skills?.join(', ') ?? '',
   }
 }
 
-export function vacancyPayload(values: VacancyFormValues, needId?: string | null): VacancyIn {
+export function vacancyPayload(values: VacancyFormValues, needId?: string | null, existing?: VacancyResponse): VacancyIn {
   return {
     ...values,
     title: values.title.trim(), description: values.description.trim(),
@@ -46,7 +46,12 @@ export function vacancyPayload(values: VacancyFormValues, needId?: string | null
     salary_from: values.salary_from ? Number(values.salary_from) : null,
     salary_to: values.salary_to ? Number(values.salary_to) : null,
     work_format: values.work_format || null, employment_type: values.employment_type || null,
-    skills: parseSkills(values.skills), need_id: needId ?? null,
+    required_skills: parseSkills(values.skills),
+    optional_skills: existing?.optional_skills ?? [],
+    responsibilities: existing?.responsibilities ?? [],
+    salary_type: existing?.salary_type ?? 'gross',
+    matching: existing?.matching ?? null,
+    need_id: needId ?? null,
   }
 }
 

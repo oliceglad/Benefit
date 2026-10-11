@@ -24,6 +24,11 @@ describe('employer need form', () => {
     expect(needPayload(needFormSchema.parse(needFormValues(saved)))).toEqual(expected)
   })
 
+  it('requires a confirmed grade for new needs without silently changing saved preferences', () => {
+    expect(needFormValues().require_confirmed_grade).toBe(true)
+    expect(needFormValues({ ...saved, require_confirmed_grade: false }).require_confirmed_grade).toBe(false)
+  })
+
   it('deduplicates skills and explicitly clears optional requirements', () => {
     const values = needFormSchema.parse({
       ...needFormValues(saved), required_skills: ' Python, python; PostgreSQL\nPostgreSQL ', optional_skills: '',

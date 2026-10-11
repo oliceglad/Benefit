@@ -17,6 +17,7 @@ const transitions = {
   published: { title: 'Опубликовать вакансию?', action: 'Опубликовать', description: 'Вакансия появится в каталоге. Соискатели смогут посмотреть условия и отправить отклик.' },
   draft: { title: 'Снять вакансию с публикации?', action: 'В черновик', description: 'Вакансия исчезнет из каталога. Её можно будет отредактировать и опубликовать снова.' },
   closed: { title: 'Закрыть вакансию?', action: 'Закрыть вакансию', description: 'Вакансия исчезнет из каталога и останется в списке компании со статусом «Закрыта».' },
+  archived: { title: 'Перенести вакансию в архив?', action: 'В архив', description: 'Вакансия исчезнет из рабочего списка. Её можно будет восстановить в черновик.' },
 }
 
 export function VacancyActions({ vacancy }: { vacancy: VacancyResponse }) {
@@ -49,7 +50,7 @@ export function VacancyActions({ vacancy }: { vacancy: VacancyResponse }) {
           {vacancy.status === 'published' ? <Globe className="size-5 text-primary" aria-hidden="true" /> : <LockKeyhole className="size-5 text-muted-foreground" aria-hidden="true" />}
           <div className="space-y-1">
             <p className="text-sm font-semibold">Управление вакансией</p>
-            <p className="text-xs text-muted-foreground">{vacancy.status === 'published' ? 'Видна в каталоге соискателей' : 'Сейчас видна только вашей компании'}</p>
+            <p className="text-xs text-muted-foreground">{vacancy.status === 'published' ? 'Видна в каталоге соискателей' : vacancy.status === 'archived' ? 'Хранится в архиве' : 'Не опубликована в каталоге'}</p>
           </div>
           <Badge variant="secondary">{vacancyStatusLabels[vacancy.status]}</Badge>
         </div>
@@ -57,10 +58,12 @@ export function VacancyActions({ vacancy }: { vacancy: VacancyResponse }) {
           <Button asChild variant="outline"><Link to="/vacancies/$vacancyId/edit" params={{ vacancyId: vacancy.id }}><Pencil aria-hidden="true" />Редактировать</Link></Button>
           {vacancy.status === 'published' ? (
             <Button variant="outline" onClick={() => selectStatus('draft')}>Снять с публикации</Button>
+          ) : vacancy.status === 'archived' ? (
+            <Button onClick={() => selectStatus('draft')}>Восстановить в черновик</Button>
           ) : (
             <Button onClick={() => selectStatus('published')}><Globe aria-hidden="true" />Опубликовать</Button>
           )}
-          {vacancy.status !== 'closed' ? <Button variant="ghost" onClick={() => selectStatus('closed')}><X aria-hidden="true" />Закрыть</Button> : null}
+          {!['closed', 'archived'].includes(vacancy.status) ? <Button variant="ghost" onClick={() => selectStatus('closed')}><X aria-hidden="true" />Закрыть</Button> : null}
         </div>
       </div>
       {notice ? <p role="status" className="text-sm text-primary">{notice}</p> : null}

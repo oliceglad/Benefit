@@ -1,7 +1,7 @@
 import { Award, BadgeCheck, ChevronDown, ExternalLink, LockKeyhole, MapPin } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { candidateAchievements, candidateSkills, dateLabel, experienceLabel, publicAchievementUrl } from '@/features/talent/model/candidate-presentation'
+import { candidateAchievements, candidateSkills, candidateVerifiedSkills, dateLabel, experienceLabel, publicAchievementUrl } from '@/features/talent/model/candidate-presentation'
 import { formatLabels, gradeLabels, roleLabels } from '@/features/talent/model/talent-search'
 import type { CandidateCard, MatchedCandidate, WorkFormat } from '@/shared/api/generated/talent/models'
 import { MatchExplanation, MatchPreview } from '@/features/talent/ui/match-explanation'
@@ -15,6 +15,7 @@ const skillLevels: Record<string, string> = { beginner: 'Базовый', interm
 
 export function TalentCandidateCard({ candidate, match, open, onOpenChange, actions }: { candidate: CandidateCard; match?: MatchedCandidate; open: boolean; onOpenChange: (open: boolean) => void; actions?: ReactNode }) {
   const skills = candidateSkills(candidate.skills)
+  const verifiedSkills = candidateVerifiedSkills(candidate.verified_skills)
   const achievements = candidateAchievements(candidate.fsp_achievements)
   const confirmed = candidate.category.grade_status === 'confirmed'
   const name = candidate.full_name.trim() || 'Кандидат'
@@ -42,6 +43,7 @@ export function TalentCandidateCard({ candidate, match, open, onOpenChange, acti
                 </span>
                 <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1"><MapPin size={13} aria-hidden="true" />{candidate.city || 'Город не указан'}</span><span>{experienceLabel(candidate.experience_months)}</span><span>{searchStatuses[candidate.job_search_status] ?? 'Статус поиска не указан'}</span></span>
                 {skills.length > 0 ? <span className="flex flex-wrap gap-1.5 pt-1">{skills.slice(0, 6).map((skill, index) => <Badge key={`${skill.name}-${index}`} variant="secondary" className="font-normal">{skill.name}</Badge>)}{skills.length > 6 ? <span className="self-center text-xs text-muted-foreground">ещё {skills.length - 6}</span> : null}</span> : null}
+                {verifiedSkills.length ? <span className="flex flex-wrap items-center gap-1.5 text-xs text-primary"><BadgeCheck className="size-3.5" aria-hidden="true" />Подтверждены тестами: {verifiedSkills.slice(0, 3).map((skill) => skill.skill).join(', ')}{verifiedSkills.length > 3 ? ` и ещё ${verifiedSkills.length - 3}` : ''}</span> : null}
               </span>
               <ChevronDown className={`mt-1 size-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
@@ -55,6 +57,7 @@ export function TalentCandidateCard({ candidate, match, open, onOpenChange, acti
               <section className="space-y-2"><h3 className="text-sm font-semibold">Категория и подтверждение</h3><p className="text-sm">{category}</p><p className="text-sm text-muted-foreground">{confirmed ? 'Подтверждено платформенным тестированием.' : 'Грейд указан в профиле и пока не подтверждён тестом.'}</p>{confirmed && candidate.category.test_title ? <p className="text-sm text-muted-foreground">Тест: {candidate.category.test_title}</p> : null}{confirmed && percent != null && percent >= 0 && percent <= 100 ? <p className="text-sm text-muted-foreground">Результат: {new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(percent)}%</p> : null}</section>
               <section className="space-y-2"><h3 className="text-sm font-semibold">Условия и активность</h3><p className="text-sm">{salary}</p><p className="text-sm text-muted-foreground">{candidate.work_formats.length ? candidate.work_formats.map((format) => formatLabels[format as WorkFormat] ?? format).join(' · ') : 'Формат работы не указан'}{candidate.relocation_ready ? ' · Готов к переезду' : ''}</p>{lastActive ? <p className="text-sm text-muted-foreground">Последняя активность: {lastActive}</p> : null}</section>
             </div>
+            <section className="space-y-3"><h3 className="flex items-center gap-2 text-sm font-semibold"><BadgeCheck className="size-4 text-primary" aria-hidden="true" />Навыки, подтверждённые тестами</h3>{verifiedSkills.length ? <ul className="grid gap-3 sm:grid-cols-2">{verifiedSkills.map((skill, index) => <li key={`${skill.skill}-${index}`} className="space-y-1 rounded-lg border border-primary/20 bg-primary/5 p-3"><p className="text-sm font-medium">{skill.skill}{skill.title ? ` · ${skill.title}` : ''}</p>{skill.percent != null ? <p className="text-xs text-muted-foreground">Результат: {new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(skill.percent)}%</p> : null}</li>)}</ul> : <p className="text-xs leading-5 text-muted-foreground">Отдельные результаты проверки навыков не предоставлены. Подтверждение общего грейда показано выше.</p>}</section>
             <section className="space-y-3"><h3 className="text-sm font-semibold">Навыки из профиля</h3>{skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={`${skill.name}-${index}`} variant="secondary" className="font-normal">{skill.name}{skill.level ? ` · ${skillLevels[skill.level] ?? skill.level}` : ''}{skill.years != null ? ` · ${skill.years} г.` : ''}</Badge>)}</div> : <p className="text-sm text-muted-foreground">Навыки не предоставлены.</p>}</section>
             <section className="space-y-3" aria-label={`Достижения ФСП: ${name}`}>
               <div className="flex flex-wrap items-center gap-2"><Award size={17} className="text-primary" aria-hidden="true" /><h3 className="text-sm font-semibold">Достижения ФСП</h3>{candidate.fsp_count > 0 ? <span className="text-xs text-muted-foreground">Подтверждённых: {candidate.fsp_count}</span> : null}</div>

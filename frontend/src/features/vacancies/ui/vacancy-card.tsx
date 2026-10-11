@@ -40,7 +40,7 @@ export function VacancyCard({ vacancy, employer = false }: { vacancy: VacancyRes
       </div>
       <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">{vacancy.description}</p>
       <div className="mt-auto flex flex-wrap gap-1.5">
-        {vacancy.skills?.slice(0, 5).map((skill) => (
+        {vacancy.required_skills?.slice(0, 5).map((skill) => (
           <span key={skill} className="rounded-md border px-2 py-1 text-xs text-muted-foreground">{skill}</span>
         ))}
       </div>

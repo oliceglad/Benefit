@@ -30,7 +30,7 @@ const rootRoute = createRootRoute({ component: Outlet })
 
 function homeRedirect() {
   return session.getSnapshot().user?.role === 'employer'
-    ? redirect({ to: '/vacancies', search: { offset: 0 }, replace: true })
+    ? redirect({ to: '/talent', search: talentSearchSchema.parse({}), replace: true })
     : redirect({ to: '/profile', search: { section: undefined }, replace: true })
 }
 
@@ -154,6 +154,15 @@ const vacanciesRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => vacancySearchSchema.parse(search),
   component: lazyRouteComponent(() => import('@/app/pages/vacancies-page'), 'VacanciesPage'),
 })
+const companyRoute = createRoute({
+  getParentRoute: () => cabinetLayoutRoute,
+  path: '/company',
+  beforeLoad: requireEmployer,
+  component: lazyRouteComponent(
+    () => import('@/features/employer-company/ui/company-profile-page'),
+    'CompanyProfilePage',
+  ),
+})
 const vacancyDetailRoute = createRoute({
   getParentRoute: () => cabinetLayoutRoute, path: '/vacancies/$vacancyId',
   component: lazyRouteComponent(() => import('@/app/pages/vacancy-page'), 'VacancyPage'),
@@ -248,7 +257,7 @@ const routeTree = rootRoute.addChildren([
   publicationConsentRoute,
   ...(companyDesignPreviewRoute ? [companyDesignPreviewRoute] : []),
   ...(pipelineDesignPreviewRoute ? [pipelineDesignPreviewRoute] : []),
-  cabinetLayoutRoute.addChildren([talentRoute, vacanciesRoute, vacancyCreateRoute, vacancyEditRoute, vacancyDetailRoute, pipelinesRoute, messagesRoute.addChildren([messageThreadRoute])]),
+  cabinetLayoutRoute.addChildren([talentRoute, companyRoute, vacanciesRoute, vacancyCreateRoute, vacancyEditRoute, vacancyDetailRoute, pipelinesRoute, messagesRoute.addChildren([messageThreadRoute])]),
   candidateLayoutRoute.addChildren([profileRoute, assessmentsRoute, assessmentAttemptRoute]),
 ])
 

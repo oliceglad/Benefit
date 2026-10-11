@@ -2,7 +2,8 @@
 
 ## Zite Applicant Tracking
 
-Vacancy editor and employer job rows use composition references from
+Vacancy editor, employer job rows, compact page states and progressive stage
+editing use composition references from
 `zite/applicant-tracking`, revision
 `efde414cb971e075b27325fafb05577bd8f1f9f1`. Exact source and destination paths
 are recorded in `docs/component-sources.yaml`. The implementation uses Benefit
@@ -99,3 +100,7 @@ subject to inclusion of this copyright and permission notice.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+The employer shell also adapts the donor top-navigation and account-menu
+composition to Benefit routes and the existing local dropdown primitive. Donor
+account actions, identity providers and business logic are not included.

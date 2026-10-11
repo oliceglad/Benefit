@@ -7,6 +7,17 @@ const achievementSchema = z.object({
   place: z.number().int().positive().nullish().catch(null),
   team: text, event_date: text, url: text,
 })
+const verifiedSkillSchema = z.object({
+  skill: z.string().trim().min(1), level: text, title: text,
+  percent: z.number().min(0).max(100).nullish().catch(null),
+})
+
+export function candidateVerifiedSkills(values: unknown[] = []) {
+  return values.flatMap((value) => {
+    const result = verifiedSkillSchema.safeParse(value)
+    return result.success ? [result.data] : []
+  })
+}
 
 export function candidateSkills(values: unknown[]) {
   return values.flatMap((value) => {

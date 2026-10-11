@@ -14,7 +14,7 @@ export type VacancySearch = z.infer<typeof vacancySearchSchema>
 export const vacancyPageSize = 12
 export const gradeLabels = { intern: 'Стажёр', junior: 'Junior', middle: 'Middle', senior: 'Senior', lead: 'Lead' }
 export const formatLabels = { remote: 'Удалённо', hybrid: 'Гибрид', office: 'Офис' }
-export const vacancyStatusLabels = { draft: 'Черновик', published: 'Опубликована', closed: 'Закрыта' }
+export const vacancyStatusLabels = { draft: 'Черновик', published: 'Опубликована', closed: 'Закрыта', archived: 'В архиве' }
 
 export function salaryLabel(from?: number | null, to?: number | null, currency = 'RUB'): string {
   const money = (value: number) => new Intl.NumberFormat('ru-RU').format(value)

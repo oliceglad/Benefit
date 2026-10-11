@@ -8,8 +8,10 @@ import { z } from 'zod'
 
 import { createVacancyCompany } from '@/features/vacancies/api/vacancy-company'
 import { FormField as VacancyFormField, formSelectClass as vacancySelectClass } from '@/shared/ui/form-field'
+import { employerCompanyQueryKey } from '@/features/employer-company'
 import { Industry } from '@/shared/api/generated/employers/models'
 import { RequestError } from '@/shared/api/ui/request-error'
+import { useSession } from '@/shared/session/session'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/ui/alert-dialog'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -32,11 +34,15 @@ const industries: Record<Industry, string> = {
 export function VacancyCompanySetup({ purpose = 'vacancy', onCancel }: { purpose?: 'vacancy' | 'need'; onCancel?: () => void }) {
   const client = useQueryClient()
   const [cancelRequested, setCancelRequested] = useState(false)
+  const accountId = useSession().user?.id ?? 'unknown'
   const form = useForm<z.infer<typeof companySchema>>({ resolver: zodResolver(companySchema), defaultValues: { name: '', industry: 'other', description: '' } })
   const isDirty = form.formState.isDirty
   const mutation = useMutation({
     mutationFn: createVacancyCompany,
-    onSuccess: (company) => { form.reset(); client.setQueryData(['vacancy-company'], company) },
+    onSuccess: (company) => {
+      form.reset()
+      client.setQueryData(employerCompanyQueryKey(accountId), company)
+    },
   })
   const blocker = useBlocker({ shouldBlockFn: () => isDirty || mutation.isPending, enableBeforeUnload: () => isDirty || mutation.isPending, withResolver: true })
   return (

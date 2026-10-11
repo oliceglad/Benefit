@@ -65,6 +65,7 @@ export function NeedEditor({ need, onSaved, onCancel }: { need?: NeedResponse; o
             <FormField id="need-specialization" label="Специализация" required error={errors.specialization?.message}>{(props) => <select {...props} className={formSelectClass} {...form.register('specialization')}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}</FormField>
             <FormField id="need-grade" label="Целевой грейд" required error={errors.grade?.message}>{(props) => <select {...props} className={formSelectClass} {...form.register('grade')}>{Object.entries(gradeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>}</FormField>
           </div>
+          <Controller control={form.control} name="require_confirmed_grade" render={({ field }) => <label className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-6"><Checkbox className="mt-1" checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} /><span><span className="block font-medium">Только с подтверждённым тестом грейдом</span><span className="block text-xs leading-5 text-muted-foreground">Квалификация подтверждена на платформе. Отключите, чтобы включить профили с заявленным грейдом.</span></span></label>} />
           <FormField id="need-team" label="Задачи и команда" required error={errors.team_description?.message} hint="Чем занимается команда и над чем будет работать специалист.">{(props) => <Textarea {...props} rows={4} maxLength={8000} {...form.register('team_description')} />}</FormField>
           <div className="grid gap-5 sm:grid-cols-2">
             <FormField id="need-required" label="Обязательные навыки" required error={errors.required_skills?.message} hint="Через запятую; до 30 навыков.">{(props) => <Input {...props} placeholder="Python, PostgreSQL" {...form.register('required_skills')} />}</FormField>
@@ -89,7 +90,6 @@ export function NeedEditor({ need, onSaved, onCancel }: { need?: NeedResponse; o
                 <FormField id="need-experience" label="Минимальный опыт, месяцев" error={errors.min_experience_months?.message} hint="12 месяцев = 1 год. Пустое поле — без ограничения.">{(props) => <Input {...props} type="number" min={0} max={600} {...form.register('min_experience_months')} />}</FormField>
               </div>
               {([
-                ['require_confirmed_grade', 'Только с подтверждённым тестом грейдом'],
                 ['strict_skills', 'Требовать все обязательные навыки; близкие технологии не заменяют их'],
                 ['hard_budget', 'Исключать ожидания выше верхней границы бюджета'],
                 ['strict_format', 'Исключать кандидатов с несовпадающим форматом работы'],

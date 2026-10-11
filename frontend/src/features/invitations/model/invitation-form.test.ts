@@ -19,6 +19,11 @@ describe('Обязательные условия предложения', () =>
     expect(payload.message).toBe('Приглашаем обсудить команду.')
   })
 
+  it('требует описание предложения, включая персональное приглашение без вакансии', () => {
+    expect(invitationFormSchema.safeParse({ ...values, message: '   ' }).success).toBe(false)
+    expect(invitationFormSchema.safeParse({ ...values, message: 'a'.repeat(2001) }).success).toBe(false)
+  })
+
   it('разрешает публикацию только с корректной вилкой в RUB', () => {
     expect(publicationSalaryError({ salary_from: null, salary_to: null, currency: 'RUB' })).not.toBeNull()
     expect(publicationSalaryError({ salary_from: 180000, salary_to: 240000, currency: 'USD' })).not.toBeNull()

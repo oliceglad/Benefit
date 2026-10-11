@@ -613,6 +613,15 @@
           "has_photo": {
             "type": "boolean",
             "title": "Has Photo"
+          },
+          "verified_skills": {
+            "type": "array",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Verified Skills",
+            "default": []
           }
         },
         "type": "object",

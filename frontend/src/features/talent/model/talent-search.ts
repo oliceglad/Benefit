@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { Grade, ITRole, WorkFormat } from '@/shared/api/generated/talent/models'
+import { Grade, Industry, ITRole, WorkFormat } from '@/shared/api/generated/talent/models'
 import type { SearchCandidatesApiV1TalentCandidatesGetParams } from '@/shared/api/generated/talent/models'
 
 const optionalText = (max: number) => z.string().trim().max(max).catch('').optional()
@@ -13,13 +13,16 @@ export const talentSearchSchema = z.object({
   q: optionalText(200),
   specialization: z.enum(ITRole).optional().catch(undefined),
   grade: z.preprocess((value) => typeof value === 'string' ? [value] : value, z.array(z.enum(Grade)).max(5).optional().catch(undefined)),
-  grade_status: z.enum(['confirmed', 'not_confirmed']).optional().catch(undefined),
+  grade_status: z.enum(['confirmed', 'not_confirmed', 'all']).catch('confirmed').default('confirmed'),
+  industry: z.enum(Industry).optional().catch(undefined),
   skills: optionalText(500),
   skills_mode: z.enum(['all', 'any']).catch('all').default('all'),
   fsp: z.enum(['with', 'without']).optional().catch(undefined),
   city: optionalText(100),
   work_format: z.enum(WorkFormat).optional().catch(undefined),
   experience_min: optionalNumber(50),
+  experience_max: optionalNumber(50),
+  salary_max: z.preprocess((value) => value === '' || value == null ? undefined : value, z.coerce.number().int().min(0).max(100_000_000).optional().catch(undefined)),
   active_only: z.preprocess((value) => value === true || value === 'true', z.boolean()).default(false),
   include_not_looking: z.preprocess((value) => value === true || value === 'true', z.boolean()).default(false),
   sort: z.enum(['relevance', 'skills', 'actuality', 'experience', 'fsp']).catch('relevance').default('relevance'),
@@ -39,6 +42,7 @@ export function talentRequest(search: TalentSearch): SearchCandidatesApiV1Talent
   void _hideContacted
   return {
     ...params,
+    grade_status: search.grade_status === 'all' ? undefined : search.grade_status,
     skills: [...new Set((skills ?? '').split(/[,;\n]/).map((skill) => skill.trim()).filter(Boolean))],
     has_fsp: fsp === 'with' ? true : fsp === 'without' ? false : undefined,
     limit: talentPageSize,
@@ -46,6 +50,22 @@ export function talentRequest(search: TalentSearch): SearchCandidatesApiV1Talent
 }
 
 export const talentDefaults: TalentSearch = talentSearchSchema.parse({})
+
+export function talentFilterKey(search: TalentSearch): string {
+  const { sort: _sort, offset: _offset, limit: _limit, ...filters } = talentRequest(search)
+  void _sort
+  void _offset
+  void _limit
+  return JSON.stringify(filters)
+}
+
+export const industryLabels: Record<Industry, string> = {
+  fintech: 'Финтех и банки', ecommerce: 'Электронная коммерция', govtech: 'Государственные технологии',
+  telecom: 'Телеком', healthtech: 'Медицина и здоровье', edtech: 'Образование', gamedev: 'Разработка игр',
+  media: 'Медиа', logistics: 'Логистика', industry: 'Промышленность', energy: 'Энергетика',
+  cybersecurity: 'Кибербезопасность', ai: 'Искусственный интеллект', travel: 'Путешествия',
+  real_estate: 'Недвижимость', outsource: 'Аутсорсинг', other: 'Другая отрасль',
+}
 
 export const gradeLabels: Record<Grade, string> = { intern: 'Стажёр', junior: 'Junior', middle: 'Middle', senior: 'Senior', lead: 'Lead' }
 export const formatLabels: Record<WorkFormat, string> = { office: 'Офис', remote: 'Удалённо', hybrid: 'Гибрид' }

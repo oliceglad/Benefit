@@ -6,15 +6,18 @@ import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 
 import { getVacancy, saveVacancy } from '@/features/vacancies/api/vacancies'
+import { employerCompanyQueryKey } from '@/features/employer-company'
 import { employmentLabels, specializationLabels, vacancyFormSchema, vacancyFormValues, vacancyPayload, type VacancyFormValues } from '@/features/vacancies/model/vacancy-form'
 import { formatLabels, gradeLabels, vacancyStatusLabels } from '@/features/vacancies/model/vacancy-search'
 import { VacancyCompanySetup } from '@/features/vacancies/ui/vacancy-company-setup'
 import { FormField as VacancyFormField, formSelectClass as vacancySelectClass } from '@/shared/ui/form-field'
 import { VacancyFormPreview } from '@/features/vacancies/ui/vacancy-form-preview'
+import { VacancyLoadError } from '@/features/vacancies/ui/vacancy-load-error'
 import { getVacancyCompany } from '@/features/vacancies/api/vacancy-company'
 import type { VacancyResponse } from '@/shared/api/generated/employers/models'
 import { isApiError } from '@/shared/api/transport/api-error'
 import { RequestError } from '@/shared/api/ui/request-error'
+import { useSession } from '@/shared/session/session'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/shared/ui/alert-dialog'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
@@ -25,15 +28,20 @@ import { publicationSalaryError } from '@/shared/lib/salary-range'
 
 export function VacancyEditorPage() {
   const { vacancyId } = useParams({ strict: false })
+  const accountId = useSession().user?.id ?? 'unknown'
   const vacancy = useQuery({
     queryKey: ['vacancies', 'detail', vacancyId, true],
     queryFn: ({ signal }) => getVacancy(vacancyId!, true, signal),
     enabled: Boolean(vacancyId),
   })
-  const company = useQuery({ queryKey: ['vacancy-company'], queryFn: ({ signal }) => getVacancyCompany(signal), enabled: !vacancyId })
+  const company = useQuery({
+    queryKey: employerCompanyQueryKey(accountId),
+    queryFn: ({ signal }) => getVacancyCompany(signal),
+    enabled: !vacancyId,
+  })
 
   if (vacancyId && vacancy.isPending || !vacancyId && company.isPending) return <Spinner label="Готовим редактор…" />
-  if (vacancyId && vacancy.isError) return <RequestError error={vacancy.error} onRetry={() => { void vacancy.refetch() }} />
+  if (vacancyId && vacancy.isError) return <VacancyLoadError error={vacancy.error} onRetry={() => { void vacancy.refetch() }} />
   if (!vacancyId && company.isError) return <RequestError error={company.error} onRetry={() => { void company.refetch() }} />
   if (!vacancyId && company.data === null) return <VacancyCompanySetup />
 
@@ -48,7 +56,7 @@ function VacancyEditor({ vacancy, companyName }: { vacancy?: VacancyResponse; co
   const values = useWatch({ control: form.control }) as VacancyFormValues
   const blocker = useBlocker({ shouldBlockFn: () => form.formState.isDirty, enableBeforeUnload: () => form.formState.isDirty, withResolver: true })
   const mutation = useMutation({
-    mutationFn: (input: VacancyFormValues) => saveVacancy(vacancyPayload(input, vacancy?.need_id), vacancy?.id),
+    mutationFn: (input: VacancyFormValues) => saveVacancy(vacancyPayload(input, vacancy?.need_id, vacancy), vacancy?.id),
     onSuccess: async (saved) => {
       client.setQueryData(['vacancies', 'detail', saved.id, true], saved)
       void client.invalidateQueries({ queryKey: ['vacancies'] })

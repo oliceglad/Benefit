@@ -7,6 +7,7 @@
 import type { Actuality } from './actuality';
 import type { CandidateCardFspAchievementsItem } from './candidateCardFspAchievementsItem';
 import type { CandidateCardSkillsItem } from './candidateCardSkillsItem';
+import type { CandidateCardVerifiedSkillsItem } from './candidateCardVerifiedSkillsItem';
 import type { Category } from './category';
 import type { ITRole } from './iTRole';
 
@@ -31,4 +32,5 @@ export interface CandidateCard {
   fsp_achievements: CandidateCardFspAchievementsItem[];
   actuality: Actuality;
   has_photo: boolean;
+  verified_skills?: CandidateCardVerifiedSkillsItem[];
 }

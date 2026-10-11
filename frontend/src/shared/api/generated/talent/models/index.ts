@@ -9,6 +9,7 @@ export * from './actuality';
 export * from './candidateCard';
 export * from './candidateCardFspAchievementsItem';
 export * from './candidateCardSkillsItem';
+export * from './candidateCardVerifiedSkillsItem';
 export * from './category';
 export * from './categoryCount';
 export * from './grade';

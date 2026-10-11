@@ -33,13 +33,19 @@ export async function respondToInvitation(id: string, action: 'accept' | 'declin
 }
 
 export async function getOfferOptions(signal?: AbortSignal) {
-  const company = myCompanyApiV1EmployersCompanyGet(requestOptions(signal)).then((response) => response.data).catch((error: unknown) => {
+  const company = myCompanyApiV1EmployersCompanyGet(requestOptions(signal)).then((response) => {
+    if (response.status !== 200) throw new Error('Unexpected company response')
+    return response.data
+  }).catch((error: unknown) => {
     if (isApiError(error) && error.status === 404 && error.code === 'company_not_found') return null
     throw error
   })
-  const vacancies = myVacanciesApiV1EmployersVacanciesGet(requestOptions(signal)).then((response) => response.data)
+  const vacancies = myVacanciesApiV1EmployersVacanciesGet({}, requestOptions(signal)).then((response) => {
+    if (response.status !== 200) throw new Error('Unexpected vacancy list response')
+    return response.data
+  })
   const [companyData, vacancyData] = await Promise.all([company, vacancies])
-  return { company: companyData, vacancies: vacancyData.filter((vacancy) => vacancy.status !== 'closed') }
+  return { company: companyData, vacancies: vacancyData.filter((vacancy) => !['closed', 'archived'].includes(vacancy.status)) }
 }
 
 export async function invitationConversation(id: string, signal?: AbortSignal) {

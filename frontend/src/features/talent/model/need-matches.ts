@@ -10,6 +10,7 @@ const candidateSchema = z.object({
   relocation_ready: z.boolean(), job_search_status: z.string(), roles: z.array(z.enum(ITRole)),
   category: categorySchema.extend({ industry: z.enum(Industry).nullable(), verified_percent: z.number().nullable(), test_title: z.string().nullable() }),
   skills: z.array(z.record(z.string(), z.unknown())), experience_months: z.number().nonnegative(),
+  verified_skills: z.array(z.record(z.string(), z.unknown())).default([]),
   work_formats: z.array(z.string()), salary_from: z.number().nullable(), salary_currency: z.string().nullable(),
   fsp_count: z.number().int().nonnegative(), fsp_achievements: z.array(z.record(z.string(), z.unknown())),
   actuality: z.object({ status: z.string(), last_active_at: z.string(), days_since_active: z.number() }), has_photo: z.boolean(),

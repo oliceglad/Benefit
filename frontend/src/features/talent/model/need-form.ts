@@ -53,7 +53,7 @@ export function needFormValues(need?: NeedResponse): NeedFormValues {
     required_skills: need?.required_skills.join(', ') ?? '', optional_skills: need?.optional_skills?.join(', ') ?? '',
     work_formats: need?.work_formats ?? [], city: need?.city ?? '', headcount: String(need?.headcount ?? 1),
     salary_from: need?.salary_from?.toString() ?? '', salary_to: need?.salary_to?.toString() ?? '', currency: need?.currency ?? 'RUB',
-    require_confirmed_grade: need?.require_confirmed_grade ?? false, strict_skills: need?.strict_skills ?? false,
+    require_confirmed_grade: need?.require_confirmed_grade ?? true, strict_skills: need?.strict_skills ?? false,
     grade_tolerance: need?.grade_tolerance ?? 1, min_experience_months: need?.min_experience_months?.toString() ?? '',
     hard_budget: need?.hard_budget ?? false, strict_format: need?.strict_format ?? false,
   }

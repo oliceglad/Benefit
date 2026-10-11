@@ -45,10 +45,22 @@ describe('root redirect', () => {
     expect(await open('/')).toBe('/profile')
   })
 
-  it('sends a signed-in employer to the vacancies', async () => {
+  it('sends a signed-in employer to candidate selection', async () => {
     signedInAs('employer')
 
-    expect(await open('/')).toBe('/vacancies')
+    expect(await open('/')).toBe('/talent')
+  })
+
+  it('allows an employer to open the company profile', async () => {
+    signedInAs('employer')
+
+    expect(await open('/company')).toBe('/company')
+  })
+
+  it('does not expose the company editor to a candidate', async () => {
+    signedInAs('candidate')
+
+    expect(await open('/company')).toBe('/vacancies')
   })
 
   it('treats a failed session check as anonymous', async () => {

@@ -65,6 +65,7 @@ function InvitationForm({ candidateId, name, defaults, options, onClose }: {
     form.setValue('salaryTo', vacancy.currency === 'RUB' ? vacancy.salary_to?.toString() ?? '' : '', { shouldDirty: true })
     form.setValue('workFormat', vacancy.work_format ?? '', { shouldDirty: true })
     form.setValue('city', vacancy.city ?? '', { shouldDirty: true })
+    if (!form.getValues('message').trim()) form.setValue('message', vacancy.description, { shouldDirty: true })
   }
 
   return <div className="space-y-4 rounded-xl border bg-card p-5">
@@ -81,7 +82,8 @@ function InvitationForm({ candidateId, name, defaults, options, onClose }: {
           <FormField id={`${id}-city`} label="Город" error={errors.city?.message}>{(props) => <Input {...props} maxLength={100} {...form.register('city')} />}</FormField>
         </div>
         <p className="text-xs text-muted-foreground">Ежемесячная вилка в рублях. Обе границы обязательны.</p>
-        <FormField id={`${id}-message`} label="Почему вы приглашаете кандидата" error={errors.message?.message} hint="До 2000 символов. Необязательно.">{(props) => <Textarea {...props} rows={3} maxLength={2000} placeholder="Какие навыки и достижения пригодятся команде?" {...form.register('message')} />}</FormField>
+        <FormField id={`${id}-message`} label="Описание предложения" required error={errors.message?.message} hint="Задачи команды и условия работы. До 2000 символов.">{(props) => <Textarea {...props} rows={4} maxLength={2000} placeholder="Чем предстоит заниматься и почему опыт кандидата подходит команде?" {...form.register('message')} />}</FormField>
+        <p className="text-xs leading-5 text-muted-foreground">Способ связи: чат Benefit после принятия приглашения.</p>
         {mutation.isError ? <RequestError error={mutation.error} /> : null}
         <div className="flex flex-wrap gap-2"><Button type="submit">{mutation.isPending ? <Spinner label="Отправляем…" /> : <Send size={16} aria-hidden="true" />}Отправить приглашение</Button><Button type="button" variant="outline" onClick={() => dirty ? setDiscard(true) : onClose()}>Отмена</Button></div>
       </fieldset>

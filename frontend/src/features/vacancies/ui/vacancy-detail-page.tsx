@@ -7,6 +7,7 @@ import { applyForVacancy, getVacancy, myApplications } from '@/features/vacancie
 import { formatLabels, gradeLabels, salaryLabel } from '@/features/vacancies/model/vacancy-search'
 import { employmentLabels, specializationLabels } from '@/features/vacancies/model/vacancy-form'
 import { VacancyActions } from '@/features/vacancies/ui/vacancy-actions'
+import { VacancyLoadError } from '@/features/vacancies/ui/vacancy-load-error'
 import { RequestError } from '@/shared/api/ui/request-error'
 import { useSession } from '@/shared/session/session'
 import { Badge } from '@/shared/ui/badge'
@@ -54,7 +55,7 @@ function VacancyDetail({ vacancyId, renderPipeline }: { vacancyId: string } & Va
   ))
 
   if (vacancy.isPending) return <Spinner label="Загружаем вакансию…" />
-  if (vacancy.isError) return <RequestError error={vacancy.error} onRetry={() => { void vacancy.refetch() }} />
+  if (vacancy.isError) return <VacancyLoadError error={vacancy.error} onRetry={() => { void vacancy.refetch() }} />
   const data = vacancy.data
 
   return (
@@ -90,11 +91,11 @@ function VacancyDetail({ vacancyId, renderPipeline }: { vacancyId: string } & Va
             <h2 className="mb-4 text-xl font-semibold">О работе</h2>
             <p className="whitespace-pre-wrap break-words text-sm leading-7 text-muted-foreground">{data.description}</p>
           </div>
-          {data.skills?.length ? (
+          {data.required_skills?.length ? (
             <div>
               <h2 className="mb-3 text-lg font-semibold">Ключевые навыки</h2>
               <div className="flex flex-wrap gap-2">
-                {data.skills.map((skill) => <Badge key={skill} variant="secondary">{skill}</Badge>)}
+                {data.required_skills.map((skill) => <Badge key={skill} variant="secondary">{skill}</Badge>)}
               </div>
             </div>
           ) : null}

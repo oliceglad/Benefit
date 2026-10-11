@@ -14,11 +14,11 @@ export const invitationFormSchema = z.object({
   salaryFrom: amount, salaryTo: amount,
   workFormat: z.enum(['', 'office', 'remote', 'hybrid']),
   city: z.string().trim().max(100, 'Не более 100 символов'),
-  message: z.string().trim().max(2000, 'Не более 2000 символов'),
+  message: z.string().trim().min(1, 'Опишите предложение и задачи команды').max(2000, 'Не более 2000 символов'),
 }).refine((value) => Number(value.salaryFrom) <= Number(value.salaryTo), { path: ['salaryTo'], message: 'Верхняя граница должна быть не меньше нижней' })
 
 export type InvitationFormValues = z.infer<typeof invitationFormSchema>
-export type OfferDefaults = Partial<Pick<InvitationFormValues, 'title' | 'salaryFrom' | 'salaryTo' | 'workFormat' | 'city'>>
+export type OfferDefaults = Partial<Pick<InvitationFormValues, 'title' | 'salaryFrom' | 'salaryTo' | 'workFormat' | 'city' | 'message'>>
 
 export function invitationPayload(candidateId: string, values: InvitationFormValues): InvitationCreate {
   return {

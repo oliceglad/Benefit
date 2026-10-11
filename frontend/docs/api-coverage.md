@@ -143,6 +143,7 @@ at repository revision `edc285a4bbf6e71d6df24b703230a7445280ab3c`.
 | Edit full vacancy | `PUT /api/v1/employers/vacancies/{id}` | `employer` | Implemented; existing need link preserved |
 | Publish / unpublish / close | `PATCH /api/v1/employers/vacancies/{id}` | `employer` | Implemented; explicit confirmation |
 | First-vacancy company setup | `GET/PUT /api/v1/employers/company` | `employer` | Implemented; only offered for missing company |
+| Full employer company profile | `GET/PUT /api/v1/employers/company` | `employer` | Implemented at `/company`; all `CompanyIn` fields, create-on-404, field errors and unsaved-change protection |
 | Own applications | `GET /api/v1/applications` | `candidate` | Implemented |
 | Apply to vacancy | `POST /api/v1/applications` | `candidate` | Implemented; explicit action with contact disclosure |
 | Pipeline template persistence | No custom-template contract | `employer` | Local browser drafts only; no hiring API called |
@@ -150,6 +151,19 @@ at repository revision `edc285a4bbf6e71d6df24b703230a7445280ab3c`.
 The pipeline stage catalog is a user-requested proposal. It has no automatic
 mapping to application statuses. Scope, routes, backend handoff and verification
 limits are recorded in [vacancies-and-pipelines.md](vacancies-and-pipelines.md).
+
+### Employer company contract limitations
+
+- `PUT /api/v1/employers/company` replaces the complete company payload. It has
+  no version, ETag or `If-Match` precondition; `updated_at` is response-only.
+  The frontend therefore preserves all loaded fields but cannot prevent a
+  concurrent last-write-wins update.
+- The rus employer snapshot and generated client include verification and logo
+  operations. Verification is displayed only when returned by the server. Logo
+  controls and requests require the server's `has_logo` capability field, which
+  main does not yet return; initials are shown otherwise. No backend changes
+  from rus were imported. There is no team membership or employer dictionary
+  interface; industry and size copy maps the generated server enums.
 
 ## Chat — 2026-10-10
 
